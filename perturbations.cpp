@@ -7,7 +7,9 @@
 
 #include <cmath>
 #include <vector>
+#include <iostream>
 
+#include <gsl/gsl_errno.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_interp.h>
 #include <gsl/gsl_interp2d.h>
@@ -19,6 +21,47 @@
 #include "perturbations.hpp"
 #include "quantity.hpp"
 #include "io.hpp"
+
+
+void integration_status(
+        int status,
+        const std::string& integration_info,
+        Quantity& result
+        )
+{
+    switch (status) {
+        case GSL_EMAXITER:
+            std::cerr << "Error during integration of " << integration_info
+                << ": Maxiumum number of subdevisions reached.  Aborting."
+                << std::endl;
+            abort();
+        case GSL_EROUND:
+            std::cerr << "Warning during integration of " << integration_info
+                << ": Rounding error. Result: " << result
+                << std::endl;
+            return;
+        case GSL_ESING:
+            std::cerr << "Error during integration of " << integration_info
+                << ": Singularity or bad behaviour in integral.  Aborting."
+                << std::endl;
+            abort();
+        case GSL_EDIVERGE:
+            std::cerr << "Warning during integration of " << integration_info
+                << ": Integrand is divergent or too slowly convergent.  Aborting."
+                << std::endl;
+            abort();
+        case GSL_EDOM:
+            std::cerr << "Warning during integration of " << integration_info
+                << ": Error in the values of input arguments.  Aborting."
+                << std::endl;
+            abort();
+        default:
+                std::cerr << "Unknown status: " << status
+                    << " returned from integration of " << integration_info
+                    << std::endl;
+            abort();
+    }
+}
 
 Interpolations::Interpolations(
         const std::string& filename,
@@ -101,9 +144,13 @@ void Interpolations::z_function(
         params.q = q_vals[j];
         for (int i = 0; i < n_points; ++i) {
             // Integrate from 1e-6 rather than 0 to avoid extrapolation error
-            gsl_integration_qag(&F, 1e-6, tau_vals[i], eps_abs, eps_rel,
-                    sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
-                    &result.error);
+            int status = gsl_integration_qag(&F, 1e-6, tau_vals[i], eps_abs,
+                    eps_rel, sub_regions, GSL_INTEG_GAUSS61, workspace,
+                    &result.value, &result.error);
+
+            if (status != 0) {
+                integration_status(status, "z_function integration", result);
+            }
             z_vals[j * n_points + i] = result.value;
         }
     }
@@ -194,9 +241,12 @@ void psi_0(
     F.function = &psi_0_integrand;
     F.params = &params;
 
-    gsl_integration_qag(&F, constants.tau_ini, tau, eps_abs, eps_rel,
-            sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
+    int status = gsl_integration_qag(&F, constants.tau_ini, tau, eps_abs,
+            eps_rel, sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
             &result.error);
+    if (status != 0) {
+        integration_status(status, "psi_0 integration", result);
+    }
 }
 
 
@@ -242,9 +292,12 @@ void psi_1(
     F.function = &psi_1_integrand;
     F.params = &params;
 
-    gsl_integration_qag(&F, constants.tau_ini, tau, eps_abs, eps_rel,
-            sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
+    int status = gsl_integration_qag(&F, constants.tau_ini, tau, eps_abs,
+            eps_rel, sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
             &result.error);
+    if (status != 0) {
+        integration_status(status, "psi_1 integration", result);
+    }
 
     result *= -1;
 }
@@ -292,9 +345,13 @@ void psi_2(
     F.function = &psi_2_integrand;
     F.params = &params;
 
-    gsl_integration_qag(&F, constants.tau_ini, tau, eps_abs, eps_rel,
-            sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
+    int status = gsl_integration_qag(&F, constants.tau_ini, tau, eps_abs,
+            eps_rel, sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
             &result.error);
+
+    if (status != 0) {
+        integration_status(status, "psi_2 integration", result);
+    }
 
     result *= -1;
 }
@@ -338,9 +395,13 @@ Quantity Perturbations::integrate_background(double (*integrand)(double, void*))
     F.function = integrand;
     F.params = &params;
 
-    gsl_integration_qag(&F, 0, cutoff, outer_eps_abs, outer_eps_rel,
-            outer_sub_regions, GSL_INTEG_GAUSS61, outer_workspace,
-            &result.value, &result.error);
+    int status = gsl_integration_qag(&F, 0, cutoff, outer_eps_abs,
+            outer_eps_rel, outer_sub_regions, GSL_INTEG_GAUSS61,
+            outer_workspace, &result.value, &result.error);
+
+    if (status != 0) {
+        integration_status(status, "background integration", result);
+    }
 
     return result;
 }
@@ -429,9 +490,13 @@ Quantity Perturbations::integrate_perturbations(double (*integrand)(double, void
     F.function = integrand;
     F.params = &params;
 
-    gsl_integration_qag(&F, 0, cutoff, outer_eps_abs, outer_eps_rel,
-            outer_sub_regions, GSL_INTEG_GAUSS61, outer_workspace, &result.value,
-            &result.error);
+    int status = gsl_integration_qag(&F, 0, cutoff, outer_eps_abs,
+            outer_eps_rel, outer_sub_regions, GSL_INTEG_GAUSS61,
+            outer_workspace, &result.value, &result.error);
+
+    if (status != 0) {
+        integration_status(status, "background integration", result);
+    }
 
     return result;
 }
