@@ -9,6 +9,7 @@
 #include <cmath>
 #include <vector>
 
+#include <gsl/gsl_errno.h>
 #include <gsl/gsl_interp.h>
 #include <gsl/gsl_interp2d.h>
 #include <gsl/gsl_spline.h>
@@ -19,6 +20,9 @@
 
 
 int main(int argc, char* argv[]) {
+    // Turn off GSL error handler
+    gsl_set_error_handler_off();
+
     if (argc != 3) {
         std::cerr << "Number of arguments should be 2! Exiting." << std::endl;
         return 1;
