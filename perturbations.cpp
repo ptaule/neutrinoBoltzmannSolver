@@ -601,10 +601,18 @@ void Perturbations::compute() {
     rho      = integrate_background(rho_integrand);
     pressure = integrate_background(pressure_integrand);
 
+    std::cout << "Computing delta_rho...";
+    std::cout.flush();
     Quantity delta_rho = integrate_perturbations(delta_rho_integrand);
+    std::cout << "done.\nComputing delta_P...";
+    std::cout.flush();
     Quantity delta_P   = integrate_perturbations(delta_P_integrand);
+    std::cout << "done.\n";
+    std::cout.flush();
     /* theta              = integrate_perturbations(theta_integrand); */
 
+    std::cout << "Computing sigma...";
+    std::cout.flush();
     // If k is larger than threshold, interpolate psi_2(q) before integrating
     if (k > 5) {
         double q_min = 1e-5;
@@ -618,6 +626,7 @@ void Perturbations::compute() {
     else {
         sigma = integrate_perturbations(sigma_integrand);
     }
+    std::cout << "done" << std::endl;
 
     delta = delta_rho / rho;
     cs2 = delta_P / delta_rho;
