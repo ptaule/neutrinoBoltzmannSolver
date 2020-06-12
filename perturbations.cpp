@@ -149,7 +149,7 @@ void Interpolations::z_function(
                     &result.value, &result.error);
 
             if (status != 0) {
-                integration_status(status, "z_function integration", result);
+                integration_status(status, "z_function", result);
             }
             z_vals[j * n_points + i] = result.value;
         }
@@ -245,7 +245,7 @@ void psi_0(
             eps_rel, sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
             &result.error);
     if (status != 0) {
-        integration_status(status, "psi_0 integration", result);
+        integration_status(status, "psi_0", result);
     }
 }
 
@@ -296,7 +296,7 @@ void psi_1(
             eps_rel, sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
             &result.error);
     if (status != 0) {
-        integration_status(status, "psi_1 integration", result);
+        integration_status(status, "psi_1", result);
     }
 
     result *= -1;
@@ -350,7 +350,7 @@ void psi_2(
             &result.error);
 
     if (status != 0) {
-        integration_status(status, "psi_2 integration", result);
+        integration_status(status, "psi_2", result);
     }
 
     result *= -1;
@@ -400,7 +400,7 @@ Quantity Perturbations::integrate_background(double (*integrand)(double, void*))
             outer_workspace, &result.value, &result.error);
 
     if (status != 0) {
-        integration_status(status, "background integration", result);
+        integration_status(status, "background", result);
     }
 
     return result;
@@ -516,7 +516,7 @@ Quantity Perturbations::integrate_perturbations(
             outer_workspace, &result.value, &result.error);
 
     if (status != 0) {
-        integration_status(status, "perturbations integration", result);
+        integration_status(status, "perturbations", result);
     }
 
     return result;
