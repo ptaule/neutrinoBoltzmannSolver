@@ -411,12 +411,15 @@ Quantity Perturbations::integrate_background(double (*integrand)(double, void*))
 struct perturbation_integrand_parameters {
     double tau;
     double k;
+    double q_min;
     const Constants& constants;
     const Interpolations& interpols;
     gsl_integration_workspace* inner_workspace;
     int inner_sub_regions;
     double inner_eps_rel;
     double inner_eps_abs;
+    gsl_interp_accel* psi_acc = nullptr;
+    gsl_spline* psi_spline = nullptr;
 };
 
 
@@ -480,11 +483,29 @@ inline double sigma_integrand(double q, void* parameters) {
 
 
 
-Quantity Perturbations::integrate_perturbations(double (*integrand)(double, void*)) {
+inline double sigma_integrand_psi_2_interpolated(double q, void* parameters) {
+    perturbation_integrand_parameters* params =
+        (perturbation_integrand_parameters*)(parameters);
+
+    return pow(q,3) * 1.0/eps_over_q(params->tau, q, params->constants,
+            params->interpols) * df0_dlnq(q) *
+        gsl_spline_eval(params->psi_spline, q, params->psi_acc);
+}
+
+
+
+Quantity Perturbations::integrate_perturbations(
+        double (*integrand)(double, void*),
+        double q_min,
+        gsl_interp_accel* psi_acc,
+        gsl_spline* psi_spline
+        )
+{
     Quantity result;
 
-    perturbation_integrand_parameters params = {tau, k, constants, interpols,
-        inner_workspace, inner_sub_regions, inner_eps_rel, inner_eps_abs};
+    perturbation_integrand_parameters params = {tau, k, q_min, constants, interpols,
+        inner_workspace, inner_sub_regions, inner_eps_rel, inner_eps_abs,
+        psi_acc, psi_spline};
 
     gsl_function F;
     F.function = integrand;
@@ -495,11 +516,57 @@ Quantity Perturbations::integrate_perturbations(double (*integrand)(double, void
             outer_workspace, &result.value, &result.error);
 
     if (status != 0) {
-        integration_status(status, "background integration", result);
+        integration_status(status, "perturbations integration", result);
     }
 
     return result;
 }
+
+
+
+void Perturbations::interpolate_psi(
+        void (*psi)(
+            double tau,
+            double k,
+            double q,
+            const Constants& constants,
+            const Interpolations& interpols,
+            Quantity& result,
+            gsl_integration_workspace* workspace,
+            int sub_regions,
+            double eps_rel,
+            double eps_abs
+            ),
+        double q_min,
+        gsl_interp_accel** psi_acc,
+        gsl_spline** psi_spline
+        )
+{
+    int n_points = 1000;
+
+    std::vector<double> q_vals(n_points, 0);
+    std::vector<double> psi_vals(n_points, 0);
+
+    double q_max = cutoff;
+    // First element of q_vals should remain 0
+    for (int i = 0; i < n_points; ++i) {
+        q_vals[i] = q_min * pow(q_max/q_min, static_cast<double>(i)/(n_points - 1));
+    }
+
+    Quantity result;
+
+    for (int i = 0; i < n_points; ++i) {
+        psi(tau, k, q_vals[i], constants, interpols, result, inner_workspace,
+                inner_sub_regions, inner_eps_rel, inner_eps_abs);
+
+        psi_vals[i] = result.value;
+    }
+
+    *psi_acc = gsl_interp_accel_alloc();
+    *psi_spline = gsl_spline_alloc(gsl_interp_cspline, n_points);
+    gsl_spline_init(*psi_spline, q_vals.data(), psi_vals.data(), n_points);
+}
+
 
 
 Perturbations::Perturbations(
@@ -537,7 +604,20 @@ void Perturbations::compute() {
     Quantity delta_rho = integrate_perturbations(delta_rho_integrand);
     Quantity delta_P   = integrate_perturbations(delta_P_integrand);
     /* theta              = integrate_perturbations(theta_integrand); */
-    sigma              = integrate_perturbations(sigma_integrand);
+
+    // If k > 1, interpolate psi_2(q) before integrating
+    if (k > 5) {
+        double q_min = 1e-5;
+        gsl_interp_accel* psi_2_acc = nullptr;
+        gsl_spline* psi_2_spline = nullptr;
+        interpolate_psi(psi_2, q_min, &psi_2_acc, &psi_2_spline);
+
+        sigma = integrate_perturbations(sigma_integrand_psi_2_interpolated,
+                q_min, psi_2_acc, psi_2_spline);
+    }
+    else {
+        sigma = integrate_perturbations(sigma_integrand);
+    }
 
     delta = delta_rho / rho;
     cs2 = delta_P / delta_rho;

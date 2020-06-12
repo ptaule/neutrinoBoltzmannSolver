@@ -87,8 +87,31 @@ class Perturbations {
         double inner_eps_rel;
         double inner_eps_abs;
 
-        Quantity integrate_perturbations(double (*integrand)(double, void*));
         Quantity integrate_background(double (*integrand)(double, void*));
+        Quantity integrate_perturbations(
+                double (*integrand)(double, void*),
+                double q_min = 0,
+                gsl_interp_accel* psi_acc = nullptr,
+                gsl_spline* psi_spline = nullptr
+                );
+
+        void interpolate_psi(
+                void (*psi)(
+                    double tau,
+                    double k,
+                    double q,
+                    const Constants& constants,
+                    const Interpolations& interpols,
+                    Quantity& result,
+                    gsl_integration_workspace* workspace,
+                    int sub_regions,
+                    double eps_rel,
+                    double eps_abs
+                    ),
+                double q_min,
+                gsl_interp_accel** psi_acc,
+                gsl_spline** psi_spline
+                );
     public:
         Quantity rho;
         Quantity pressure;
