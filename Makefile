@@ -12,8 +12,9 @@ LDLIBS_GSL   = -lgsl -lgslcblas
 LDFLAGS += $(LDFLAGS_GSL)
 LDLIBS += $(LDLIBS_GSL) -lm
 
-all: CFLAGS += -O3
-debug: CFLAGS += -O0 -g
+all:   CFLAGS   += -O3
+debug: CPPFLAGS += -DDEBUG=1
+debug: CFLAGS   += -O0 -g
 
 .PHONY: all, run, debug, force
 

@@ -605,7 +605,7 @@ void Perturbations::compute() {
     Quantity delta_P   = integrate_perturbations(delta_P_integrand);
     /* theta              = integrate_perturbations(theta_integrand); */
 
-    // If k > 1, interpolate psi_2(q) before integrating
+    // If k is larger than threshold, interpolate psi_2(q) before integrating
     if (k > 5) {
         double q_min = 1e-5;
         gsl_interp_accel* psi_2_acc = nullptr;

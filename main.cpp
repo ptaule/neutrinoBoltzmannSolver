@@ -18,10 +18,15 @@
 #include "io.hpp"
 #include "perturbations.hpp"
 
+#ifndef DEBUG
+#define DEBUG 0
+#endif
 
 int main(int argc, char* argv[]) {
-    // Turn off GSL error handler
+    // If not in debug-mode, turn off GSL error handler
+#if DEBUG == 0
     gsl_set_error_handler_off();
+#endif
 
     if (argc != 3) {
         std::cerr << "Number of arguments should be 2! Exiting." << std::endl;
