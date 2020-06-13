@@ -630,6 +630,7 @@ void Perturbations::compute() {
 
     delta = delta_rho / rho;
     cs2 = delta_P / delta_rho;
+    cs2 *= 1.0/3.0;
 
     rho *= factor;
     pressure *= factor/3.0;
