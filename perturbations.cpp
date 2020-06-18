@@ -107,6 +107,11 @@ Interpolations::Interpolations(
     read_file_and_interpolate2d(CLASS_path + "k_grid.dat", CLASS_path +
             "z_grid.dat", CLASS_path + "psi.dat", x, y, z);
 
+    // Convert wavenumber in h/Mpc to 1/Mpc assuming hubble constant as in
+    // Constants
+    for (auto& el : x) {
+        el *= constants.h;
+    }
     // Convert redshift (y-grid) to conformal time
     for (auto& el : y) {
         el = gsl_spline_eval(tau_of_redshift_spline, el, tau_of_redshift_acc);
@@ -251,6 +256,8 @@ struct psi_integration_parameters {
     double q = 0;
     double k = 0;
     double z_func_at_tau = 0;
+    double tau_lambda;
+    double grav_psi_at_k_and_tau_lambda;
     const Constants& constants;
     const Interpolations& interpols;
 };
@@ -261,35 +268,59 @@ double psi_0_integrand(double tau, void* parameters) {
     psi_integration_parameters* params = (psi_integration_parameters*)(parameters);
     double q = params->q;
     double k = params->k;
+    const Interpolations& interpols = params->interpols;
 
     double z_func_at_tau = params->z_func_at_tau;
-    double z_func_at_tau_prime = gsl_spline2d_eval(params->interpols.z_spline,
-            tau, q, params->interpols.z_spline_x_acc,
-            params->interpols.z_spline_y_acc);
+    double z_func_at_tau_prime = gsl_spline2d_eval(interpols.z_spline, tau, q,
+            interpols.z_spline_x_acc, interpols.z_spline_y_acc);
 
-    return eps_over_q(tau, q, params->constants, params->interpols)
-        * gsl_sf_bessel_j1(k * (z_func_at_tau - z_func_at_tau_prime) );
+    double eps_over_q_val = eps_over_q(tau, q, params->constants, interpols);
+
+    double result = 0;
+
+    // Before tau_lambda, assume psi = const
+    if (tau < params->tau_lambda) {
+        result = eps_over_q_val
+            * gsl_sf_bessel_j1(k * (z_func_at_tau - z_func_at_tau_prime));
+    }
+    // After, use interpolated psi
+    else {
+        result = gsl_spline2d_eval(interpols.grav_psi_spline, params->k, tau,
+                interpols.grav_psi_x_acc, interpols.grav_psi_y_acc)
+            / params->grav_psi_at_k_and_tau_lambda
+            * (eps_over_q_val - 1/eps_over_q_val)
+            * gsl_sf_bessel_j1(k * (z_func_at_tau - z_func_at_tau_prime));
+    }
+
+    return result;
 }
 
 
 
 void psi_0(
-        double tau,
-        double k,
-        double q,
-        const Constants& constants,
-        const Interpolations& interpols,
-        Quantity& result,
-        gsl_integration_workspace* workspace,
-        int sub_regions,
-        double eps_rel,
-        double eps_abs
+        const Psi_parameters& psi_params,
+        Quantity& result
         )
 {
+    double tau                           = psi_params.tau;
+    double k                             = psi_params.k;
+    double q                             = psi_params.q;
+    double tau_lambda                    = psi_params.tau_lambda;
+    double grav_psi_at_k_and_tau_lambda  = psi_params.grav_psi_at_k_and_tau_lambda;
+    const Constants& constants           = psi_params.constants;
+    const Interpolations& interpols      = psi_params.interpols;
+    gsl_integration_workspace* workspace = psi_params.workspace;
+    int sub_regions                      = psi_params.sub_regions;
+    double eps_rel                       = psi_params.eps_rel;
+    double eps_abs                       = psi_params.eps_abs;
+
     double z_func_at_tau = gsl_spline2d_eval(interpols.z_spline, tau, q,
             interpols.z_spline_x_acc, interpols.z_spline_y_acc);
+    double z_func_at_tau_lambda = gsl_spline2d_eval(interpols.z_spline,
+            tau_lambda, q, interpols.z_spline_x_acc, interpols.z_spline_y_acc);
 
-    psi_integration_parameters params = {q, k, z_func_at_tau, constants, interpols};
+    psi_integration_parameters params = {q, k, z_func_at_tau, tau_lambda,
+        grav_psi_at_k_and_tau_lambda, constants, interpols};
 
     gsl_function F;
     F.function = &psi_0_integrand;
@@ -298,9 +329,16 @@ void psi_0(
     int status = gsl_integration_qag(&F, constants.tau_ini, tau, eps_abs,
             eps_rel, sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value,
             &result.error);
+
     if (status != 0) {
         integration_status(status, "psi_0", result);
     }
+
+    result *= k * grav_psi_at_k_and_tau_lambda;
+    result += grav_psi_at_k_and_tau_lambda *
+        gsl_sf_bessel_jl(0, k * (z_func_at_tau - z_func_at_tau_lambda))
+        - gsl_spline2d_eval(interpols.grav_psi_spline, k, tau,
+                interpols.grav_psi_x_acc, interpols.grav_psi_y_acc);
 }
 
 
@@ -309,38 +347,65 @@ double psi_1_integrand(double tau, void* parameters) {
     psi_integration_parameters* params = (psi_integration_parameters*)(parameters);
     double q = params->q;
     double k = params->k;
+    const Interpolations& interpols = params->interpols;
 
     double z_func_at_tau = params->z_func_at_tau;
-    double z_func_at_tau_prime = gsl_spline2d_eval(params->interpols.z_spline,
-            tau, q, params->interpols.z_spline_x_acc,
-            params->interpols.z_spline_y_acc);
+    double z_func_at_tau_prime = gsl_spline2d_eval(interpols.z_spline, tau, q,
+            interpols.z_spline_x_acc, interpols.z_spline_y_acc);
 
-    return eps_over_q(tau, q, params->constants, params->interpols)
-        * (
-          1.0/3.0 * gsl_sf_bessel_jl(0, k * (z_func_at_tau - z_func_at_tau_prime) )
-        - 2.0/3.0 * gsl_sf_bessel_jl(2, k * (z_func_at_tau - z_func_at_tau_prime) )
+    double eps_over_q_val = eps_over_q(tau, q, params->constants, interpols);
+
+    double result = 0;
+
+    // Before tau_lambda, assume psi = const
+    if (tau < params->tau_lambda) {
+        result = eps_over_q_val
+            * (
+              1.0/3.0 * gsl_sf_bessel_jl(0, k * (z_func_at_tau - z_func_at_tau_prime) )
+            - 2.0/3.0 * gsl_sf_bessel_jl(2, k * (z_func_at_tau - z_func_at_tau_prime) )
+            );
+    }
+    // After, use interpolated psi
+    else {
+        result = gsl_spline2d_eval(interpols.grav_psi_spline, params->k, tau,
+                interpols.grav_psi_x_acc, interpols.grav_psi_y_acc)
+            / params->grav_psi_at_k_and_tau_lambda
+            * (eps_over_q_val - 1/eps_over_q_val)
+            * (
+              1.0/3.0 * gsl_sf_bessel_jl(0, k * (z_func_at_tau - z_func_at_tau_prime) )
+            - 2.0/3.0 * gsl_sf_bessel_jl(2, k * (z_func_at_tau - z_func_at_tau_prime) )
         );
+    }
+
+    return result;
 }
 
 
 
 void psi_1(
-        double tau,
-        double k,
-        double q,
-        const Constants& constants,
-        const Interpolations& interpols,
-        Quantity& result,
-        gsl_integration_workspace* workspace,
-        int sub_regions,
-        double eps_rel,
-        double eps_abs
+        const Psi_parameters& psi_params,
+        Quantity& result
         )
 {
+    double tau                           = psi_params.tau;
+    double k                             = psi_params.k;
+    double q                             = psi_params.q;
+    double tau_lambda                    = psi_params.tau_lambda;
+    double grav_psi_at_k_and_tau_lambda  = psi_params.grav_psi_at_k_and_tau_lambda;
+    const Constants& constants           = psi_params.constants;
+    const Interpolations& interpols      = psi_params.interpols;
+    gsl_integration_workspace* workspace = psi_params.workspace;
+    int sub_regions                      = psi_params.sub_regions;
+    double eps_rel                       = psi_params.eps_rel;
+    double eps_abs                       = psi_params.eps_abs;
+
     double z_func_at_tau = gsl_spline2d_eval(interpols.z_spline, tau, q,
             interpols.z_spline_x_acc, interpols.z_spline_y_acc);
+    double z_func_at_tau_lambda = gsl_spline2d_eval(interpols.z_spline,
+            tau_lambda, q, interpols.z_spline_x_acc, interpols.z_spline_y_acc);
 
-    psi_integration_parameters params = {q, k, z_func_at_tau, constants, interpols};
+    psi_integration_parameters params = {q, k, z_func_at_tau, tau_lambda,
+        grav_psi_at_k_and_tau_lambda, constants, interpols};
 
     gsl_function F;
     F.function = &psi_1_integrand;
@@ -353,7 +418,10 @@ void psi_1(
         integration_status(status, "psi_1", result);
     }
 
-    result *= -1;
+    result *= - k * grav_psi_at_k_and_tau_lambda;
+    result += gsl_spline2d_eval(interpols.grav_psi_spline, k, tau_lambda,
+            interpols.grav_psi_x_acc, interpols.grav_psi_y_acc)
+        * gsl_sf_bessel_jl(1, k * (z_func_at_tau - z_func_at_tau_lambda));
 }
 
 
@@ -362,38 +430,65 @@ double psi_2_integrand(double tau, void* parameters) {
     psi_integration_parameters* params = (psi_integration_parameters*)(parameters);
     double q = params->q;
     double k = params->k;
+    const Interpolations& interpols = params->interpols;
 
     double z_func_at_tau = params->z_func_at_tau;
-    double z_func_at_tau_prime = gsl_spline2d_eval(params->interpols.z_spline,
-            tau, q, params->interpols.z_spline_x_acc,
-            params->interpols.z_spline_y_acc);
+    double z_func_at_tau_prime = gsl_spline2d_eval(interpols.z_spline, tau, q,
+            interpols.z_spline_x_acc, interpols.z_spline_y_acc);
 
-    return eps_over_q(tau, q, params->constants, params->interpols)
-        * (
-          2.0/5.0 * gsl_sf_bessel_jl(1, k * (z_func_at_tau - z_func_at_tau_prime) )
-        - 3.0/5.0 * gsl_sf_bessel_jl(3, k * (z_func_at_tau - z_func_at_tau_prime) )
-        );
+    double eps_over_q_val = eps_over_q(tau, q, params->constants, interpols);
+
+    double result = 0;
+
+    // Before tau_lambda, assume psi = const
+    if (tau < params->tau_lambda) {
+        result = eps_over_q_val
+            * (
+                    2.0/5.0 * gsl_sf_bessel_jl(1, k * (z_func_at_tau - z_func_at_tau_prime) )
+                  - 3.0/5.0 * gsl_sf_bessel_jl(3, k * (z_func_at_tau - z_func_at_tau_prime) )
+              );
+    }
+    // After, use interpolated psi
+    else {
+        result = gsl_spline2d_eval(interpols.grav_psi_spline, params->k, tau,
+                interpols.grav_psi_x_acc, interpols.grav_psi_y_acc)
+            / params->grav_psi_at_k_and_tau_lambda
+            * (eps_over_q_val - 1/eps_over_q_val)
+            * (
+                    2.0/5.0 * gsl_sf_bessel_jl(1, k * (z_func_at_tau - z_func_at_tau_prime) )
+                  - 3.0/5.0 * gsl_sf_bessel_jl(3, k * (z_func_at_tau - z_func_at_tau_prime) )
+              );
+    }
+
+    return result;
 }
 
 
 
 void psi_2(
-        double tau,
-        double k,
-        double q,
-        const Constants& constants,
-        const Interpolations& interpols,
-        Quantity& result,
-        gsl_integration_workspace* workspace,
-        int sub_regions,
-        double eps_rel,
-        double eps_abs
+        const Psi_parameters& psi_params,
+        Quantity& result
         )
 {
+    double tau                           = psi_params.tau;
+    double k                             = psi_params.k;
+    double q                             = psi_params.q;
+    double tau_lambda                    = psi_params.tau_lambda;
+    double grav_psi_at_k_and_tau_lambda  = psi_params.grav_psi_at_k_and_tau_lambda;
+    const Constants& constants           = psi_params.constants;
+    const Interpolations& interpols      = psi_params.interpols;
+    gsl_integration_workspace* workspace = psi_params.workspace;
+    int sub_regions                      = psi_params.sub_regions;
+    double eps_rel                       = psi_params.eps_rel;
+    double eps_abs                       = psi_params.eps_abs;
+
     double z_func_at_tau = gsl_spline2d_eval(interpols.z_spline, tau, q,
             interpols.z_spline_x_acc, interpols.z_spline_y_acc);
+    double z_func_at_tau_lambda = gsl_spline2d_eval(interpols.z_spline,
+            tau_lambda, q, interpols.z_spline_x_acc, interpols.z_spline_y_acc);
 
-    psi_integration_parameters params = {q, k, z_func_at_tau, constants, interpols};
+    psi_integration_parameters params = {q, k, z_func_at_tau, tau_lambda,
+        grav_psi_at_k_and_tau_lambda, constants, interpols};
 
     gsl_function F;
     F.function = &psi_2_integrand;
@@ -407,7 +502,10 @@ void psi_2(
         integration_status(status, "psi_2", result);
     }
 
-    result *= -1;
+    result *= - k * grav_psi_at_k_and_tau_lambda;
+    result += gsl_spline2d_eval(interpols.grav_psi_spline, k, tau_lambda,
+            interpols.grav_psi_x_acc, interpols.grav_psi_y_acc)
+        * gsl_sf_bessel_jl(2, k * (z_func_at_tau - z_func_at_tau_lambda));
 }
 
 
@@ -466,6 +564,8 @@ struct perturbation_integrand_parameters {
     double tau;
     double k;
     double q_min;
+    double tau_lambda;
+    double grav_psi_at_k_and_tau_lambda;
     const Constants& constants;
     const Interpolations& interpols;
     gsl_integration_workspace* inner_workspace;
@@ -483,9 +583,12 @@ inline double delta_rho_integrand(double q, void* parameters) {
         (perturbation_integrand_parameters*)(parameters);
 
     Quantity psi_0_result;
-    psi_0(params->tau, params->k, q, params->constants, params->interpols,
-            psi_0_result, params->inner_workspace, params->inner_sub_regions,
-            params->inner_eps_rel, params->inner_eps_abs);
+    const Psi_parameters psi_params = {params->tau, params->k, q,
+        params->tau_lambda, params->grav_psi_at_k_and_tau_lambda,
+        params->constants, params->interpols, params->inner_workspace,
+        params->inner_sub_regions, params->inner_eps_rel, params->inner_eps_abs
+    };
+    psi_0(psi_params, psi_0_result);
 
     return pow(q,3) * eps_over_q(params->tau, q, params->constants,
             params->interpols) * df0_dlnq(q) * psi_0_result.value;
@@ -498,9 +601,12 @@ inline double delta_P_integrand(double q, void* parameters) {
         (perturbation_integrand_parameters*)(parameters);
 
     Quantity psi_0_result;
-    psi_0(params->tau, params->k, q, params->constants, params->interpols,
-            psi_0_result, params->inner_workspace, params->inner_sub_regions,
-            params->inner_eps_rel, params->inner_eps_abs);
+    const Psi_parameters psi_params = {params->tau, params->k, q,
+        params->tau_lambda, params->grav_psi_at_k_and_tau_lambda,
+        params->constants, params->interpols, params->inner_workspace,
+        params->inner_sub_regions, params->inner_eps_rel, params->inner_eps_abs
+    };
+    psi_0(psi_params, psi_0_result);
 
     return pow(q,3) * 1.0/eps_over_q(params->tau, q, params->constants,
             params->interpols) * df0_dlnq(q) * psi_0_result.value;
@@ -513,9 +619,12 @@ inline double theta_integrand(double q, void* parameters) {
         (perturbation_integrand_parameters*)(parameters);
 
     Quantity psi_1_result;
-    psi_1(params->tau, params->k, q, params->constants, params->interpols,
-            psi_1_result, params->inner_workspace, params->inner_sub_regions,
-            params->inner_eps_rel, params->inner_eps_abs);
+    const Psi_parameters psi_params = {params->tau, params->k, q,
+        params->tau_lambda, params->grav_psi_at_k_and_tau_lambda,
+        params->constants, params->interpols, params->inner_workspace,
+        params->inner_sub_regions, params->inner_eps_rel, params->inner_eps_abs
+    };
+    psi_1(psi_params, psi_1_result);
 
     return pow(q,3) * df0_dlnq(q) * psi_1_result.value;
 }
@@ -527,9 +636,12 @@ inline double sigma_integrand(double q, void* parameters) {
         (perturbation_integrand_parameters*)(parameters);
 
     Quantity psi_2_result;
-    psi_2(params->tau, params->k, q, params->constants, params->interpols,
-            psi_2_result, params->inner_workspace, params->inner_sub_regions,
-            params->inner_eps_rel, params->inner_eps_abs);
+    const Psi_parameters psi_params = {params->tau, params->k, q,
+        params->tau_lambda, params->grav_psi_at_k_and_tau_lambda,
+        params->constants, params->interpols, params->inner_workspace,
+        params->inner_sub_regions, params->inner_eps_rel, params->inner_eps_abs
+    };
+    psi_2(psi_params, psi_2_result);
 
     return pow(q,3) * 1.0/eps_over_q(params->tau, q, params->constants,
             params->interpols) * df0_dlnq(q) * psi_2_result.value;
@@ -557,9 +669,9 @@ Quantity Perturbations::integrate_perturbations(
 {
     Quantity result;
 
-    perturbation_integrand_parameters params = {tau, k, q_min, constants, interpols,
-        inner_workspace, inner_sub_regions, inner_eps_rel, inner_eps_abs,
-        psi_acc, psi_spline};
+    perturbation_integrand_parameters params = {tau, k, q_min, tau_lambda,
+        grav_psi_at_k_and_tau_lambda, constants, interpols, inner_workspace,
+        inner_sub_regions, inner_eps_rel, inner_eps_abs, psi_acc, psi_spline};
 
     gsl_function F;
     F.function = integrand;
@@ -580,16 +692,8 @@ Quantity Perturbations::integrate_perturbations(
 
 void Perturbations::interpolate_psi(
         void (*psi)(
-            double tau,
-            double k,
-            double q,
-            const Constants& constants,
-            const Interpolations& interpols,
-            Quantity& result,
-            gsl_integration_workspace* workspace,
-            int sub_regions,
-            double eps_rel,
-            double eps_abs
+            const Psi_parameters& psi_params,
+            Quantity& result
             ),
         double q_min,
         gsl_interp_accel** psi_acc,
@@ -607,11 +711,16 @@ void Perturbations::interpolate_psi(
         q_vals[i] = q_min * pow(q_max/q_min, static_cast<double>(i)/(n_points - 1));
     }
 
+    Psi_parameters psi_params = {tau, k, 0.0,
+        tau_lambda, grav_psi_at_k_and_tau_lambda,
+        constants, interpols, inner_workspace,
+        inner_sub_regions, inner_eps_rel, inner_eps_abs
+    };
     Quantity result;
 
     for (int i = 0; i < n_points; ++i) {
-        psi(tau, k, q_vals[i], constants, interpols, result, inner_workspace,
-                inner_sub_regions, inner_eps_rel, inner_eps_abs);
+        psi_params.q = q_vals[i];
+        psi(psi_params, result);
 
         psi_vals[i] = result.value;
     }
@@ -628,6 +737,7 @@ Perturbations::Perturbations(
         double k,
         Constants& constants,
         Interpolations& interpols,
+        double z_lambda,
         double cutoff,
         gsl_integration_workspace* outer_workspace,
         gsl_integration_workspace* inner_workspace,
@@ -643,7 +753,12 @@ Perturbations::Perturbations(
     outer_sub_regions(outer_sub_regions), inner_sub_regions(inner_sub_regions),
     outer_eps_rel(outer_eps_rel), outer_eps_abs(outer_eps_abs),
     inner_eps_rel(inner_eps_rel), inner_eps_abs(inner_eps_abs)
-{}
+{
+    tau_lambda = gsl_spline_eval(interpols.tau_of_redshift_spline, z_lambda,
+            interpols.tau_of_redshift_acc);
+    grav_psi_at_k_and_tau_lambda = gsl_spline2d_eval(interpols.grav_psi_spline,
+            k, tau_lambda, interpols.grav_psi_x_acc, interpols.grav_psi_y_acc);
+}
 
 
 void Perturbations::compute() {

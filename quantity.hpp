@@ -27,11 +27,17 @@ class Quantity {
         Quantity& operator-=(const Quantity& b);
         Quantity operator-(const Quantity& b);
 
-        Quantity& operator*=(double scalar);
-        Quantity operator*(double scalar);
-
         Quantity& operator/=(const Quantity& b);
         Quantity operator/(const Quantity& b);
+
+        Quantity& operator+=(double scalar);
+        Quantity operator+(double scalar);
+
+        Quantity& operator-=(double scalar);
+        Quantity operator-(double scalar);
+
+        Quantity& operator*=(double scalar);
+        Quantity operator*(double scalar);
 };
 
 std::ostream & operator<<( std::ostream & out, const Quantity & quantity );

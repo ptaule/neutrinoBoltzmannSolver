@@ -74,13 +74,35 @@ class Interpolations {
 };
 
 
+struct Psi_parameters {
+        double tau = 0;
+        double k = 0;
+        double q = 0;
+        double tau_lambda = 0;
+        double grav_psi_at_k_and_tau_lambda = 0;
+        const Constants& constants;
+        const Interpolations& interpols;
+        gsl_integration_workspace* workspace = nullptr;
+        int sub_regions;
+        double eps_rel;
+        double eps_abs;
+};
+
+
+void psi_0(const Psi_parameters& psi_params, Quantity& result);
+void psi_1(const Psi_parameters& psi_params, Quantity& result);
+void psi_2(const Psi_parameters& psi_params, Quantity& result);
+
+
 class Perturbations {
     private:
         double tau = 0;
         double k = 0;
         const Constants& constants;
         const Interpolations& interpols;
-        double cutoff = 40;
+        double tau_lambda = 0; // When to turn off EdS approx.
+        double grav_psi_at_k_and_tau_lambda = 0;
+        double cutoff = 40;    // q-integral cutoff
 
         gsl_integration_workspace* outer_workspace;
         gsl_integration_workspace* inner_workspace;
@@ -101,16 +123,8 @@ class Perturbations {
 
         void interpolate_psi(
                 void (*psi)(
-                    double tau,
-                    double k,
-                    double q,
-                    const Constants& constants,
-                    const Interpolations& interpols,
-                    Quantity& result,
-                    gsl_integration_workspace* workspace,
-                    int sub_regions,
-                    double eps_rel,
-                    double eps_abs
+                    const Psi_parameters& psi_params,
+                    Quantity& result
                     ),
                 double q_min,
                 gsl_interp_accel** psi_acc,
@@ -129,6 +143,7 @@ class Perturbations {
                 double k,
                 Constants& constants,
                 Interpolations& interpols,
+                double z_lambda,
                 double cutoff,
                 gsl_integration_workspace* outer_workspace,
                 gsl_integration_workspace* inner_workspace,
@@ -142,46 +157,5 @@ class Perturbations {
 
         void compute();
 };
-
-
-void psi_0(
-        double tau,
-        double k,
-        double q,
-        const Constants& constants,
-        const Interpolations& interpols,
-        Quantity& result,
-        gsl_integration_workspace* workspace,
-        int sub_regions,
-        double eps_rel,
-        double eps_abs
-        );
-
-void psi_1(
-        double tau,
-        double k,
-        double q,
-        const Constants& constants,
-        const Interpolations& interpols,
-        Quantity& result,
-        gsl_integration_workspace* workspace,
-        int sub_regions,
-        double eps_rel,
-        double eps_abs
-        );
-
-void psi_2(
-        double tau,
-        double k,
-        double q,
-        const Constants& constants,
-        const Interpolations& interpols,
-        Quantity& result,
-        gsl_integration_workspace* workspace,
-        int sub_regions,
-        double eps_rel,
-        double eps_abs
-        );
-
 
 #endif /* ifndef PERTURBATIONS_HPP */

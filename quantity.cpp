@@ -71,21 +71,6 @@ Quantity Quantity::operator-(const Quantity& b) {
 
 
 
-Quantity& Quantity::operator*=(double scalar) {
-    this->value *= scalar;
-    this->error *= scalar;
-    return *this;
-}
-
-
-
-Quantity Quantity::operator*(double scalar) {
-    Quantity result = *this;
-    return result *= scalar;
-}
-
-
-
 Quantity& Quantity::operator/=(const Quantity& b) {
     // Gaussian error propagation
     // Note that value is set after error, so that the appropriate (old) value
@@ -104,6 +89,51 @@ Quantity Quantity::operator/(const Quantity& b) {
     Quantity result = *this;
     return result /= b;
 }
+
+
+
+Quantity& Quantity::operator+=(double scalar) {
+    this->value += scalar;
+    return *this;
+}
+
+
+
+Quantity Quantity::operator+(double scalar) {
+    Quantity result = *this;
+    return result += scalar;
+}
+
+
+
+Quantity& Quantity::operator-=(double scalar) {
+    this->value -= scalar;
+    return *this;
+}
+
+
+
+Quantity Quantity::operator-(double scalar) {
+    Quantity result = *this;
+    return result -= scalar;
+}
+
+
+
+Quantity& Quantity::operator*=(double scalar) {
+    this->value *= scalar;
+    this->error *= scalar;
+    return *this;
+}
+
+
+
+Quantity Quantity::operator*(double scalar) {
+    Quantity result = *this;
+    return result *= scalar;
+}
+
+
 
 std::ostream & operator<<( std::ostream & out, const Quantity & quantity ) {
     out << quantity.value << "\t+- " << quantity.error;
