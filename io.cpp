@@ -9,33 +9,27 @@
 #include <fstream>
 #include <string>
 #include <vector>
-#include <algorithm>
 #include <sstream>
 #include <cmath>
-
-#include <gsl/gsl_interp.h>
-#include <gsl/gsl_spline.h>
 
 #include "io.hpp"
 #include "quantity.hpp"
 
-#define INTERPOL_TYPE
 
 void read_file_and_interpolate(
         const std::string& filename,
         int column_a,
         int column_b,
-        gsl_interp_accel** acc,
-        gsl_spline** spline,
-        double (*x_op)(double), /* Optional function applied to x */
-        double (*y_op)(double)  /* Optional function applied to y */
+        std::vector<double>& x,
+        std::vector<double>& y
         )
 {
+    // Remove potential content of x and y vectors
+    x.clear();
+    y.clear();
+
     std::ifstream input(filename);
     std::string line;
-
-    std::vector<double> x;
-    std::vector<double> y;
 
     if (input.fail()) {
         std::cerr << "Could not read file: " << filename << ".\n";
@@ -52,22 +46,13 @@ void read_file_and_interpolate(
 
         // Counter
         int i = 0;
-
         while(ss >> value) {
             // If column is equal to column_a, store value in x
             if (i == column_a) {
-                if (x_op == NULL) {
-                    x.push_back(value);
-                } else {
-                    x.push_back(x_op(value));
-                }
+                x.push_back(value);
             }
             if (i == column_b) {
-                if (y_op == NULL) {
-                    y.push_back(value);
-                } else {
-                    y.push_back(y_op(value));
-                }
+                y.push_back(value);
             }
             ++i;
         }
@@ -75,29 +60,141 @@ void read_file_and_interpolate(
 
     // Sizes should be equal
     if (x.size() != y.size()) {
-        std::cerr << "x and y do not have equal sizes!. Exiting.\n";
+        std::cerr << "Dimension mismatch: x-grid and data do not have equal \
+            sizes!. Exiting." << std::endl;
         input.close();
         return;
     }
-    int size = x.size();
-
-    // If x is descending (e.g. redshift, reverse vector)
-    // We assume x strictly ascending/descending
-
-    if (x[0] > x[1]) {
-        std::reverse(x.begin(), x.end());
-        std::reverse(y.begin(), y.end());
-    }
-
-    // Interpolation
-
-    *acc = gsl_interp_accel_alloc();
-    *spline = gsl_spline_alloc(gsl_interp_cspline, size);
-
-    gsl_spline_init(*spline, x.data(), y.data(), size);
 
     input.close();
 }
+
+
+
+void read_file_and_interpolate2d(
+        const std::string& x_grid_file,
+        const std::string& y_grid_file,
+        const std::string& data_file,
+        std::vector<double>& x,
+        std::vector<double>& y,
+        std::vector<std::vector<double>>& z
+        )
+{
+    // Remove potential content of x,y,z vectors
+    x.clear();
+    y.clear();
+    z.clear();
+
+    // Read x-grid
+    std::ifstream input(x_grid_file);
+    std::string line;
+
+    if (input.fail()) {
+        std::cerr << "Could not read file: " << x_grid_file << ".\n";
+        input.close();
+        return;
+    }
+
+    while(getline(input, line)) {
+        // Ignore lines beginning with #
+        if (line[0] == '#') continue;
+
+        std::stringstream ss(line);
+        double value;
+        // Counter
+        int i = 0;
+
+        while(ss >> value) ++i;
+
+        if (i != 1) {
+            std::cerr << "More than one column in " << x_grid_file <<
+                ". Exiting." << std::endl;
+            input.close();
+            return;
+        }
+        x.push_back(value);
+    }
+    size_t x_size = x.size();
+    input.close();
+
+    // Read y-grid
+    input.open(y_grid_file);
+    if (input.fail()) {
+        std::cerr << "Could not read file: " << y_grid_file << ".\n";
+        input.close();
+        return;
+    }
+
+    while(getline(input, line)) {
+        // Ignore lines beginning with #
+        if (line[0] == '#') continue;
+
+        std::stringstream ss(line);
+        double value;
+        // Counter
+        int i = 0;
+
+        while(ss >> value) ++i;
+
+        if (i != 1) {
+            std::cerr << "More than one column in " << y_grid_file <<
+                ". Exiting." << std::endl;
+            input.close();
+            return;
+        }
+        y.push_back(value);
+    }
+    size_t y_size = y.size();
+    input.close();
+
+    // Read z-grid (data-grid)
+    input.open(data_file);
+    if (input.fail()) {
+        std::cerr << "Could not read file: " << data_file << ".\n";
+        input.close();
+        return;
+    }
+
+    z.resize(x_size);
+    for (auto& el : z) {
+        el.resize(y_size);
+    }
+
+    size_t x_idx = 0;
+    while(getline(input, line)) {
+        // Ignore lines beginning with #
+        if (line[0] == '#') continue;
+
+        if (x_idx >= x_size) {
+            std::cerr << "Dimension mismatch between x-grid and first dimension \
+                of z-grid in " << data_file << ". Exiting." << std::endl;
+            input.close();
+            return;
+        }
+
+        std::stringstream ss(line);
+        double value;
+
+        // Counter
+        size_t y_idx = 0;
+
+        while(ss >> value) {
+            if (y_idx >= y_size) {
+                std::cerr << "Dimension mismatch between x-grid and second \
+                    dimension of z-grid in " << data_file << ". Exiting." <<
+                    std::endl;
+                input.close();
+                return;
+            }
+            z[x_idx][y_idx] = value;
+            ++y_idx;
+        }
+        ++x_idx;
+    }
+    input.close();
+}
+
+
 
 void write_results(
         const std::string& filename,
@@ -127,9 +224,4 @@ void write_results(
     }
 
     output.close();
-}
-
-
-double redshift_to_scale_factor(double redshift) {
-    return 1/(redshift + 1);
 }

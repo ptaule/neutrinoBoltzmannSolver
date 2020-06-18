@@ -47,8 +47,12 @@ class Interpolations {
         gsl_interp_accel* z_spline_y_acc         = nullptr;
         gsl_spline2d*     z_spline               = nullptr;
 
+        gsl_interp_accel* grav_psi_x_acc         = nullptr;
+        gsl_interp_accel* grav_psi_y_acc         = nullptr;
+        gsl_spline2d*     grav_psi_spline        = nullptr;
+
         Interpolations(
-                const std::string& filename,
+                const std::string& CLASS_path,
                 Constants& constants,
                 gsl_integration_workspace* workspace,
                 int sub_regions,

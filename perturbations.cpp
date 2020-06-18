@@ -8,6 +8,7 @@
 #include <cmath>
 #include <vector>
 #include <iostream>
+#include <algorithm>
 
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_integration.h>
@@ -64,7 +65,7 @@ void integration_status(
 }
 
 Interpolations::Interpolations(
-        const std::string& filename,
+        const std::string& CLASS_path,
         Constants& constants,
         gsl_integration_workspace* workspace,
         int sub_regions,
@@ -72,11 +73,64 @@ Interpolations::Interpolations(
         double eps_abs
         )
 {
-    read_file_and_interpolate(filename, 2, 0, &a_of_tau_acc,
-            &a_of_tau_spline, NULL, &redshift_to_scale_factor);
-    read_file_and_interpolate(filename, 0, 2,
-            &tau_of_redshift_acc, &tau_of_redshift_spline, NULL,
-            NULL);
+    std::vector<double> x,y;
+
+    // Interpolate scale factor of conformal time
+    read_file_and_interpolate(CLASS_path + "background.dat", 2, 0, x, y);
+
+    // Convert redshift to scale factor
+    for (auto& el : y) {
+        el = 1/(el + 1);
+    }
+
+    a_of_tau_acc = gsl_interp_accel_alloc();
+    a_of_tau_spline = gsl_spline_alloc(gsl_interp_cspline, x.size());
+
+    gsl_spline_init(a_of_tau_spline, x.data(), y.data(), x.size());
+
+    // Interpolate scale factor of conformal time
+    x.clear(); y.clear();
+    read_file_and_interpolate(CLASS_path + "background.dat", 0, 2, x, y);
+
+    // x is decreasing (redshift), reverse to be able to interpolate
+    std::reverse(x.begin(), x.end());
+    std::reverse(y.begin(), y.end());
+
+    tau_of_redshift_acc = gsl_interp_accel_alloc();
+    tau_of_redshift_spline = gsl_spline_alloc(gsl_interp_cspline, x.size());
+
+    gsl_spline_init(tau_of_redshift_spline, x.data(), y.data(), x.size());
+
+    // Interpolate psi of wavenumber and redshift/conformal time
+    x.clear(); y.clear();
+    std::vector<std::vector<double>> z;
+    read_file_and_interpolate2d(CLASS_path + "k_grid.dat", CLASS_path +
+            "z_grid.dat", CLASS_path + "psi.dat", x, y, z);
+
+    // Convert redshift (y-grid) to conformal time
+    for (auto& el : y) {
+        el = gsl_spline_eval(tau_of_redshift_spline, el, tau_of_redshift_acc);
+    }
+
+    // y is decreasing (decreasing tau/increasing redshift), reverse y
+    std::reverse(y.begin(), y.end());
+
+    // Create 1-d vector from z
+    std::vector<double> z_1d(x.size() * y.size());
+    for (size_t i = 0; i < x.size(); ++i) {
+        for (size_t j = 0; j < y.size(); ++j) {
+            // 2d index -> 1d index conversion as needed by gsl interpolation library
+            // Reverse z in accordance with y
+            z_1d[i + (y.size() - 1 - j) * x.size()] = z[i][j];
+        }
+    }
+
+    grav_psi_x_acc = gsl_interp_accel_alloc();
+    grav_psi_y_acc = gsl_interp_accel_alloc();
+    grav_psi_spline = gsl_spline2d_alloc(gsl_interp2d_bicubic, x.size(), y.size());
+
+    gsl_spline2d_init(grav_psi_spline, x.data(), y.data(), z_1d.data(),
+            x.size(), y.size());
 
     constants.tau_ini = 1.0;
     double tau_today = gsl_spline_eval(tau_of_redshift_spline, 0,

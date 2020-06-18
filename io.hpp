@@ -11,17 +11,21 @@
 #include <string>
 #include <vector>
 
-#include <gsl/gsl_interp.h>
-#include <gsl/gsl_spline.h>
-
 void read_file_and_interpolate(
         const std::string& filename,
         int column_a,
         int column_b,
-        gsl_interp_accel** acc,
-        gsl_spline** spline,
-        double (*x_op)(double)=NULL, /* Optional function applied to x */
-        double (*y_op)(double)=NULL  /* Optional function applied to y */
+        std::vector<double>& x,
+        std::vector<double>& y
+        );
+
+void read_file_and_interpolate2d(
+        const std::string& x_grid_file,
+        const std::string& y_grid_file,
+        const std::string& data_file,
+        std::vector<double>& x,
+        std::vector<double>& y,
+        std::vector<std::vector<double>>& z
         );
 
 class Quantity;
@@ -32,7 +36,5 @@ void write_results(
         const std::vector<Quantity>& data,
         double k
         );
-
-double redshift_to_scale_factor(double redshift);
 
 #endif /* ifndef IO_HPP */
