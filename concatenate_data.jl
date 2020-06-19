@@ -28,12 +28,23 @@ function main()
     data = readdlm(file_prefix * "_k_0.dat", comments=true)
 
     table = data[:,2]
+    # Add first column twice, extrapolating lowest k to k = 0
+    table = [table data[:,2]]
 
     for k=1:99
         data = readdlm(file_prefix * "_k_$k.dat", comments=true)
 
         table = [table data[:,2]]
     end
+
+    # Extrapolate last k-value to k = 141
+    table = [table table[:,end]]
+
+    # Need increasing etaD grid (i.e. decreasing redshift), therefore reverse
+    # first dimension of table
+    table = reverse(table, dims=1)
+
+    # Write results to file
     writedlm(file_prefix * ".dat", table, "\t\t")
 end
 
