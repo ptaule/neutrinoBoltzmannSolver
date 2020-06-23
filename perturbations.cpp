@@ -288,7 +288,7 @@ double psi_0_integrand(double tau, void* parameters) {
         result = gsl_spline2d_eval(interpols.grav_psi_spline, params->k, tau,
                 interpols.grav_psi_x_acc, interpols.grav_psi_y_acc)
             / params->grav_psi_at_k_and_tau_lambda
-            * (eps_over_q_val - 1/eps_over_q_val)
+            * (eps_over_q_val + 1/eps_over_q_val)
             * gsl_sf_bessel_j1(k * (z_func_at_tau - z_func_at_tau_prime));
     }
 
@@ -370,7 +370,7 @@ double psi_1_integrand(double tau, void* parameters) {
         result = gsl_spline2d_eval(interpols.grav_psi_spline, params->k, tau,
                 interpols.grav_psi_x_acc, interpols.grav_psi_y_acc)
             / params->grav_psi_at_k_and_tau_lambda
-            * (eps_over_q_val - 1/eps_over_q_val)
+            * (eps_over_q_val + 1/eps_over_q_val)
             * (
               1.0/3.0 * gsl_sf_bessel_jl(0, k * (z_func_at_tau - z_func_at_tau_prime) )
             - 2.0/3.0 * gsl_sf_bessel_jl(2, k * (z_func_at_tau - z_func_at_tau_prime) )
@@ -453,7 +453,7 @@ double psi_2_integrand(double tau, void* parameters) {
         result = gsl_spline2d_eval(interpols.grav_psi_spline, params->k, tau,
                 interpols.grav_psi_x_acc, interpols.grav_psi_y_acc)
             / params->grav_psi_at_k_and_tau_lambda
-            * (eps_over_q_val - 1/eps_over_q_val)
+            * (eps_over_q_val + 1/eps_over_q_val)
             * (
                     2.0/5.0 * gsl_sf_bessel_jl(1, k * (z_func_at_tau - z_func_at_tau_prime) )
                   - 3.0/5.0 * gsl_sf_bessel_jl(3, k * (z_func_at_tau - z_func_at_tau_prime) )
