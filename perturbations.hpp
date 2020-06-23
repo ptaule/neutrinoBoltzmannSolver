@@ -104,6 +104,9 @@ class Perturbations {
         double grav_psi_at_k_and_tau_lambda = 0;
         double cutoff = 40;    // q-integral cutoff
 
+        // Interpolate psi_2 if k is above threshold?
+        bool do_interpolate_psi = false;
+
         gsl_integration_workspace* outer_workspace;
         gsl_integration_workspace* inner_workspace;
         int outer_sub_regions;
@@ -145,6 +148,7 @@ class Perturbations {
                 Interpolations& interpols,
                 double z_lambda,
                 double cutoff,
+                bool do_interpolate_psi,
                 gsl_integration_workspace* outer_workspace,
                 gsl_integration_workspace* inner_workspace,
                 int outer_sub_regions,

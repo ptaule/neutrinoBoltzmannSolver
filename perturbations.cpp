@@ -739,6 +739,7 @@ Perturbations::Perturbations(
         Interpolations& interpols,
         double z_lambda,
         double cutoff,
+        bool do_interpolate_psi,
         gsl_integration_workspace* outer_workspace,
         gsl_integration_workspace* inner_workspace,
         int outer_sub_regions,
@@ -749,10 +750,11 @@ Perturbations::Perturbations(
         double inner_eps_abs
         ) :
     tau(tau), k(k), constants(constants), interpols(interpols), cutoff(cutoff),
-    outer_workspace(outer_workspace), inner_workspace(inner_workspace),
-    outer_sub_regions(outer_sub_regions), inner_sub_regions(inner_sub_regions),
-    outer_eps_rel(outer_eps_rel), outer_eps_abs(outer_eps_abs),
-    inner_eps_rel(inner_eps_rel), inner_eps_abs(inner_eps_abs)
+    do_interpolate_psi(do_interpolate_psi), outer_workspace(outer_workspace),
+    inner_workspace(inner_workspace), outer_sub_regions(outer_sub_regions),
+    inner_sub_regions(inner_sub_regions), outer_eps_rel(outer_eps_rel),
+    outer_eps_abs(outer_eps_abs), inner_eps_rel(inner_eps_rel),
+    inner_eps_abs(inner_eps_abs)
 {
     tau_lambda = gsl_spline_eval(interpols.tau_of_redshift_spline, z_lambda,
             interpols.tau_of_redshift_acc);
@@ -783,7 +785,7 @@ void Perturbations::compute() {
     std::cout << "Computing sigma...";
     std::cout.flush();
     // If k is larger than threshold, interpolate psi_2(q) before integrating
-    if (k > 5) {
+    if (do_interpolate_psi && k > 5) {
         double q_min = 1e-5;
         gsl_interp_accel* psi_2_acc = nullptr;
         gsl_spline* psi_2_spline = nullptr;

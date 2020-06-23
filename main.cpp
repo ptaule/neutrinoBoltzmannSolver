@@ -29,6 +29,7 @@ void grid(std::vector<double>& k_grid, std::vector<double>& z_grid,
 int main(int argc, char* argv[]) {
 
     bool debug = false;
+    bool do_interpolate_psi = false;
     double cutoff = 40;
     size_t k_index = 0;
     size_t z_index_a = 0;
@@ -39,11 +40,15 @@ int main(int argc, char* argv[]) {
     double rel_tol = 1e-4;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "dk:l:m:r:")) != -1) {
+    while ((c = getopt(argc, argv, "dik:l:m:r:")) != -1) {
         switch (c) {
             case 'd':
                 // Debug mode on
                 debug = true;
+                break;
+            case 'i':
+                // Interpolate psi2 above k threshold
+                do_interpolate_psi = true;
                 break;
             case 'c':
                 cutoff = atof(optarg);
@@ -168,9 +173,9 @@ int main(int argc, char* argv[]) {
                 z_grid[i], interpols.tau_of_redshift_acc);
 
         Perturbations perturbs(tau, k * constants.h, constants, interpols,
-                z_lambda, cutoff, outer_workspace, inner_workspace,
-                outer_sub_regions, inner_sub_regions, rel_tol, 0.0, rel_tol,
-                0.0);
+                z_lambda, cutoff, do_interpolate_psi, outer_workspace,
+                inner_workspace, outer_sub_regions, inner_sub_regions, rel_tol,
+                0.0, rel_tol, 0.0);
         perturbs.compute();
 
         delta[i] = perturbs.delta;
