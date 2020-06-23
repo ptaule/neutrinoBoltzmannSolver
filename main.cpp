@@ -141,7 +141,8 @@ int main(int argc, char* argv[]) {
         z_grid = std::vector<double>(first, last);
     }
 
-    std::vector<Quantity> sigma_over_delta(z_grid.size());
+    std::vector<Quantity> delta(z_grid.size());
+    std::vector<Quantity> sigma(z_grid.size());
     std::vector<Quantity> cs2(z_grid.size());
 
     // Set up perturbation computation
@@ -172,14 +173,17 @@ int main(int argc, char* argv[]) {
                 0.0);
         perturbs.compute();
 
-        sigma_over_delta[i] = (perturbs.sigma / perturbs.delta);
+        delta[i] = perturbs.delta;
+        sigma[i] = perturbs.sigma;
         cs2[i] = perturbs.cs2;
     }
 
     std::string output_info =
         "_k_" + std::to_string(k_index) + "_z_" + std::to_string(z_index_a);
-    write_results("output_m_nu_" + m_nu_string + "eV/sigma_over_delta" +
-            output_info + ".dat", z_grid, sigma_over_delta, k);
+    write_results("output_m_nu_" + m_nu_string + "eV/delta" +
+            output_info + ".dat", z_grid, delta, k);
+    write_results("output_m_nu_" + m_nu_string + "eV/sigma" +
+            output_info + ".dat", z_grid, sigma, k);
     write_results("output_m_nu_" + m_nu_string + "eV/cs2" + output_info +
             ".dat", z_grid, cs2, k);
 
