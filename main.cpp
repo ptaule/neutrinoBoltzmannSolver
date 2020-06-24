@@ -40,8 +40,11 @@ int main(int argc, char* argv[]) {
     double rel_tol = 1e-4;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "dik:l:m:r:")) != -1) {
+    while ((c = getopt(argc, argv, "c:dik:l:m:r:")) != -1) {
         switch (c) {
+            case 'c':
+                cutoff = atof(optarg);
+                break;
             case 'd':
                 // Debug mode on
                 debug = true;
@@ -49,9 +52,6 @@ int main(int argc, char* argv[]) {
             case 'i':
                 // Interpolate psi2 above k threshold
                 do_interpolate_psi = true;
-                break;
-            case 'c':
-                cutoff = atof(optarg);
                 break;
             case 'k':
                 k_index = atoi(optarg);
@@ -67,8 +67,10 @@ int main(int argc, char* argv[]) {
                 rel_tol = atof(optarg);
                 break;
             case '?':
-                if (optopt == 'k' || optopt == 'l' ||
-                        optopt == 'm' || optopt == 'r' )
+                if (optopt == 'c' || optopt == 'd' ||
+                        optopt == 'i' || optopt == 'k' ||
+                        optopt == 'l' || optopt == 'm' ||
+                        optopt == 'r')
                 {
                     std::cerr << "Option " << optopt << " requires a keyword as \
                         argument." << std::endl;
