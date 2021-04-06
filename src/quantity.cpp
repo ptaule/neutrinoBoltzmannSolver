@@ -9,7 +9,7 @@
 #include <ostream>
 #include <iostream>
 
-#include "quantity.hpp"
+#include "../include/quantity.hpp"
 
 Quantity::Quantity() {
     value = 0;

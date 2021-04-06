@@ -19,9 +19,9 @@
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_sf_bessel.h>
 
-#include "perturbations.hpp"
-#include "quantity.hpp"
-#include "io.hpp"
+#include "../include/perturbations.hpp"
+#include "../include/quantity.hpp"
+#include "../include/io.hpp"
 
 
 void integration_status(
@@ -774,10 +774,10 @@ void Perturbations::compute() {
 
     std::cout << "Computing delta_rho...";
     std::cout.flush();
-    Quantity delta_rho = integrate_perturbations(delta_rho_integrand);
+    /* Quantity delta_rho = integrate_perturbations(delta_rho_integrand); */
     std::cout << "done.\nComputing delta_P...";
     std::cout.flush();
-    Quantity delta_P   = integrate_perturbations(delta_P_integrand);
+    /* Quantity delta_P   = integrate_perturbations(delta_P_integrand); */
     std::cout << "done.\n";
     std::cout.flush();
     /* theta              = integrate_perturbations(theta_integrand); */
@@ -799,8 +799,8 @@ void Perturbations::compute() {
     }
     std::cout << "done" << std::endl;
 
-    delta = delta_rho / rho;
-    cs2 = delta_P / delta_rho;
+    /* delta = delta_rho / rho; */
+    /* cs2 = delta_P / delta_rho; */
     cs2 *= 1.0/3.0;
 
     rho *= factor;

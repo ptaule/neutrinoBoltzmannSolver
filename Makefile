@@ -1,22 +1,29 @@
 EXE=main.prog
 
-SRC = $(wildcard *.cpp)
-OBJ = $(SRC:.cpp=.o)
+SRC_DIR = src
+OBJ_DIR = obj
+INC_DIR = include
 
-CFLAGS += -Wall -Wextra -Wpedantic # -O3
-CPPFLAGS += -I/scratch/gsl-2.5/ $(OPTIONS)
+SRC = $(wildcard $(SRC_DIR)/*.cpp)
+OBJ = $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
+HEADERS = $(wildcard $(INC_DIR)/*.hpp)
 
-LDFLAGS_GSL  = -L/scratch/gsl-2.5/.libs/ -L/scratch/gsl-2.5/cblas/.libs
-LDLIBS_GSL   = -lgsl -lgslcblas
+CXX ?= g++
 
-LDFLAGS += $(LDFLAGS_GSL)
-LDLIBS += $(LDLIBS_GSL) -lm
+CXXFLAGS += -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion \
+			-Wcast-align -Wunused -Wlogical-op -Wnull-dereference \
+			-std=c++17
 
-all:   CFLAGS   += -O3
+CPPFLAGS += -DHAVE_INLINE -I/space/ge52sir/local/
+
+all:   CXXFLAGS += -DDEBUG=0 -O3
 debug: CPPFLAGS += -DDEBUG=1
-debug: CFLAGS   += -O0 -g
+debug: CXXFLAGS += -O0 -g
 
-.PHONY: all, run, debug, force
+LDFLAGS += -L/space/ge52sir/local/lib/
+LDLIBS += -lgsl -lgslcblas
+
+.PHONY: all run debug force
 
 all: $(EXE)
 debug: $(EXE)
@@ -27,11 +34,14 @@ run: all
 $(EXE): main.o $(OBJ)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
-%.o : %.cpp $(HEADERS) compiler_flags
-	$(CXX) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+main.o: main.cpp $(HEADERS) compiler_flags
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(HEADERS) compiler_flags
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
 compiler_flags: force
-	echo '$(CPPFLAGS) $(CFLAGS)' | cmp -s - $@ || echo '$(CPPFLAGS) $(CFLAGS)' > $@
+	echo '$(CPPFLAGS) $(CXXFLAGS)' | cmp -s - $@ || echo '$(CPPFLAGS) $(CXXFLAGS)' > $@
 
 clean:
 	$(RM) $(OBJ) main.o

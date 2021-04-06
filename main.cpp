@@ -16,8 +16,8 @@
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_spline2d.h>
 
-#include "io.hpp"
-#include "perturbations.hpp"
+#include "include/io.hpp"
+#include "include/perturbations.hpp"
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -187,12 +187,12 @@ int main(int argc, char* argv[]) {
 
     std::string output_info =
         "_k_" + std::to_string(k_index) + "_z_" + std::to_string(z_index_a);
-    write_results("output_m_nu_" + m_nu_string + "eV/delta" +
-            output_info + ".dat", z_grid, delta, k);
+    /* write_results("output_m_nu_" + m_nu_string + "eV/delta" + */
+    /*         output_info + ".dat", z_grid, delta, k); */
     write_results("output_m_nu_" + m_nu_string + "eV/sigma" +
             output_info + ".dat", z_grid, sigma, k);
-    write_results("output_m_nu_" + m_nu_string + "eV/cs2" + output_info +
-            ".dat", z_grid, cs2, k);
+    /* write_results("output_m_nu_" + m_nu_string + "eV/cs2" + output_info + */
+    /*         ".dat", z_grid, cs2, k); */
 
     gsl_integration_workspace_free(outer_workspace);
     gsl_integration_workspace_free(inner_workspace);

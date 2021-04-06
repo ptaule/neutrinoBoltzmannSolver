@@ -12,8 +12,8 @@
 #include <sstream>
 #include <cmath>
 
-#include "io.hpp"
-#include "quantity.hpp"
+#include "../include/io.hpp"
+#include "../include/quantity.hpp"
 
 
 void read_file_and_interpolate(
