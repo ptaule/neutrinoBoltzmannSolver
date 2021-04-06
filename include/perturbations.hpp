@@ -17,7 +17,7 @@
 #include <gsl/gsl_spline.h>
 #include <gsl/gsl_spline2d.h>
 
-#include "quantity.hpp"
+#include "measurement.hpp"
 
 struct Constants {
     double h = 0.67556;
@@ -89,9 +89,9 @@ struct Psi_parameters {
 };
 
 
-void psi_0(const Psi_parameters& psi_params, Quantity& result);
-void psi_1(const Psi_parameters& psi_params, Quantity& result);
-void psi_2(const Psi_parameters& psi_params, Quantity& result);
+void psi_0(const Psi_parameters& psi_params, Measurement& result);
+void psi_1(const Psi_parameters& psi_params, Measurement& result);
+void psi_2(const Psi_parameters& psi_params, Measurement& result);
 
 
 class Perturbations {
@@ -116,8 +116,8 @@ class Perturbations {
         double inner_eps_rel;
         double inner_eps_abs;
 
-        Quantity integrate_background(double (*integrand)(double, void*));
-        Quantity integrate_perturbations(
+        Measurement integrate_background(double (*integrand)(double, void*));
+        Measurement integrate_perturbations(
                 double (*integrand)(double, void*),
                 double q_min = 0,
                 gsl_interp_accel* psi_acc = nullptr,
@@ -127,19 +127,19 @@ class Perturbations {
         void interpolate_psi(
                 void (*psi)(
                     const Psi_parameters& psi_params,
-                    Quantity& result
+                    Measurement& result
                     ),
                 double q_min,
                 gsl_interp_accel** psi_acc,
                 gsl_spline** psi_spline
                 );
     public:
-        Quantity rho;
-        Quantity pressure;
-        Quantity delta;
-        Quantity theta;
-        Quantity sigma;
-        Quantity cs2;
+        Measurement rho;
+        Measurement pressure;
+        Measurement delta;
+        Measurement theta;
+        Measurement sigma;
+        Measurement cs2;
 
         Perturbations(
                 double tau,

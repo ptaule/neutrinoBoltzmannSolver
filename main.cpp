@@ -148,9 +148,9 @@ int main(int argc, char* argv[]) {
         z_grid = std::vector<double>(first, last);
     }
 
-    std::vector<Quantity> delta(z_grid.size());
-    std::vector<Quantity> sigma(z_grid.size());
-    std::vector<Quantity> cs2(z_grid.size());
+    std::vector<Measurement> delta(z_grid.size());
+    std::vector<Measurement> sigma(z_grid.size());
+    std::vector<Measurement> cs2(z_grid.size());
 
     // Set up perturbation computation
     Constants constants;

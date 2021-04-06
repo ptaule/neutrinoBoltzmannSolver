@@ -28,12 +28,12 @@ void read_file_and_interpolate2d(
         std::vector<std::vector<double>>& z
         );
 
-class Quantity;
+class Measurement;
 
 void write_results(
         const std::string& filename,
         const std::vector<double>& z_vals,
-        const std::vector<Quantity>& data,
+        const std::vector<Measurement>& data,
         double k
         );
 

@@ -20,14 +20,14 @@
 #include <gsl/gsl_sf_bessel.h>
 
 #include "../include/perturbations.hpp"
-#include "../include/quantity.hpp"
+#include "../include/measurement.hpp"
 #include "../include/io.hpp"
 
 
 void integration_status(
         int status,
         const std::string& integration_info,
-        Quantity& result
+        Measurement& result
         )
 {
     switch (status) {
@@ -197,7 +197,7 @@ void Interpolations::z_function(
     F.function = &q_over_eps;
     F.params = &params;
 
-    Quantity result;
+    Measurement result;
 
     for (int j = 0; j < n_points; ++j) {
         params.q = q_vals[j];
@@ -299,7 +299,7 @@ double psi_0_integrand(double tau, void* parameters) {
 
 void psi_0(
         const Psi_parameters& psi_params,
-        Quantity& result
+        Measurement& result
         )
 {
     double tau                           = psi_params.tau;
@@ -384,7 +384,7 @@ double psi_1_integrand(double tau, void* parameters) {
 
 void psi_1(
         const Psi_parameters& psi_params,
-        Quantity& result
+        Measurement& result
         )
 {
     double tau                           = psi_params.tau;
@@ -467,7 +467,7 @@ double psi_2_integrand(double tau, void* parameters) {
 
 void psi_2(
         const Psi_parameters& psi_params,
-        Quantity& result
+        Measurement& result
         )
 {
     double tau                           = psi_params.tau;
@@ -538,8 +538,8 @@ inline double pressure_integrand(double q, void* parameters) {
 
 
 
-Quantity Perturbations::integrate_background(double (*integrand)(double, void*)) {
-    Quantity result;
+Measurement Perturbations::integrate_background(double (*integrand)(double, void*)) {
+    Measurement result;
 
     background_integration_parameters params = {tau, constants, interpols};
 
@@ -582,7 +582,7 @@ inline double delta_rho_integrand(double q, void* parameters) {
     perturbation_integrand_parameters* params =
         (perturbation_integrand_parameters*)(parameters);
 
-    Quantity psi_0_result;
+    Measurement psi_0_result;
     const Psi_parameters psi_params = {params->tau, params->k, q,
         params->tau_lambda, params->grav_psi_at_k_and_tau_lambda,
         params->constants, params->interpols, params->inner_workspace,
@@ -600,7 +600,7 @@ inline double delta_P_integrand(double q, void* parameters) {
     perturbation_integrand_parameters* params =
         (perturbation_integrand_parameters*)(parameters);
 
-    Quantity psi_0_result;
+    Measurement psi_0_result;
     const Psi_parameters psi_params = {params->tau, params->k, q,
         params->tau_lambda, params->grav_psi_at_k_and_tau_lambda,
         params->constants, params->interpols, params->inner_workspace,
@@ -618,7 +618,7 @@ inline double theta_integrand(double q, void* parameters) {
     perturbation_integrand_parameters* params =
         (perturbation_integrand_parameters*)(parameters);
 
-    Quantity psi_1_result;
+    Measurement psi_1_result;
     const Psi_parameters psi_params = {params->tau, params->k, q,
         params->tau_lambda, params->grav_psi_at_k_and_tau_lambda,
         params->constants, params->interpols, params->inner_workspace,
@@ -635,7 +635,7 @@ inline double sigma_integrand(double q, void* parameters) {
     perturbation_integrand_parameters* params =
         (perturbation_integrand_parameters*)(parameters);
 
-    Quantity psi_2_result;
+    Measurement psi_2_result;
     const Psi_parameters psi_params = {params->tau, params->k, q,
         params->tau_lambda, params->grav_psi_at_k_and_tau_lambda,
         params->constants, params->interpols, params->inner_workspace,
@@ -660,14 +660,14 @@ inline double sigma_integrand_psi_2_interpolated(double q, void* parameters) {
 
 
 
-Quantity Perturbations::integrate_perturbations(
+Measurement Perturbations::integrate_perturbations(
         double (*integrand)(double, void*),
         double q_min,
         gsl_interp_accel* psi_acc,
         gsl_spline* psi_spline
         )
 {
-    Quantity result;
+    Measurement result;
 
     perturbation_integrand_parameters params = {tau, k, q_min, tau_lambda,
         grav_psi_at_k_and_tau_lambda, constants, interpols, inner_workspace,
@@ -693,7 +693,7 @@ Quantity Perturbations::integrate_perturbations(
 void Perturbations::interpolate_psi(
         void (*psi)(
             const Psi_parameters& psi_params,
-            Quantity& result
+            Measurement& result
             ),
         double q_min,
         gsl_interp_accel** psi_acc,
@@ -716,7 +716,7 @@ void Perturbations::interpolate_psi(
         constants, interpols, inner_workspace,
         inner_sub_regions, inner_eps_rel, inner_eps_abs
     };
-    Quantity result;
+    Measurement result;
 
     for (int i = 0; i < n_points; ++i) {
         psi_params.q = q_vals[i];
@@ -774,10 +774,10 @@ void Perturbations::compute() {
 
     std::cout << "Computing delta_rho...";
     std::cout.flush();
-    /* Quantity delta_rho = integrate_perturbations(delta_rho_integrand); */
+    /* Measurement delta_rho = integrate_perturbations(delta_rho_integrand); */
     std::cout << "done.\nComputing delta_P...";
     std::cout.flush();
-    /* Quantity delta_P   = integrate_perturbations(delta_P_integrand); */
+    /* Measurement delta_P   = integrate_perturbations(delta_P_integrand); */
     std::cout << "done.\n";
     std::cout.flush();
     /* theta              = integrate_perturbations(theta_integrand); */
