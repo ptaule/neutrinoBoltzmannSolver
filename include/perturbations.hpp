@@ -9,69 +9,59 @@
 #define PERTURBATIONS_HPP
 
 #include <cmath>
+#include <string>
+#include <stdexcept>
 
 #include <gsl/gsl_integration.h>
 
-#include <gsl/gsl_interp.h>
-#include <gsl/gsl_interp2d.h>
-#include <gsl/gsl_spline.h>
-#include <gsl/gsl_spline2d.h>
-
 #include "measurement.hpp"
-
-struct Constants {
-    double h = 0.67556;
-    double m_nu;
-    double T_ncdm0 = 0.00016773497604334795;
-    double tau_ini = 1;
-};
+#include "interpolation.hpp"
 
 
-class Interpolations {
+class IntegrationException : std::exception {
     private:
-        void z_function(
-                Constants& constants,
-                double tau_fin,
-                gsl_integration_workspace* workspace,
-                int sub_regions,
-                double eps_rel,
-                double eps_abs
-                );
+        bool critical_;
+        std::string ex;
     public:
-        gsl_interp_accel* a_of_tau_acc           = nullptr;
-        gsl_spline*       a_of_tau_spline        = nullptr;
-        gsl_interp_accel* tau_of_redshift_acc    = nullptr;
-        gsl_spline*       tau_of_redshift_spline = nullptr;
-
-        gsl_interp_accel* z_spline_x_acc         = nullptr;
-        gsl_interp_accel* z_spline_y_acc         = nullptr;
-        gsl_spline2d*     z_spline               = nullptr;
-
-        gsl_interp_accel* grav_psi_x_acc         = nullptr;
-        gsl_interp_accel* grav_psi_y_acc         = nullptr;
-        gsl_spline2d*     grav_psi_spline        = nullptr;
-
-        Interpolations(
-                const std::string& CLASS_path,
-                Constants& constants,
-                gsl_integration_workspace* workspace,
-                int sub_regions,
-                double eps_rel = 1e-8,
-                double eps_abs = 0
-                );
-
-        ~Interpolations() {
-            gsl_interp_accel_free(a_of_tau_acc);
-            gsl_spline_free(a_of_tau_spline);
-
-            gsl_interp_accel_free(tau_of_redshift_acc);
-            gsl_spline_free(tau_of_redshift_spline);
-
-            gsl_interp_accel_free(z_spline_x_acc);
-            gsl_interp_accel_free(z_spline_y_acc);
-            gsl_spline2d_free(z_spline);
-        }
+        IntegrationException(int gsl_status, const std::string& integration_name);
+        bool critical() const {return critical_;}
+        const char* what() const noexcept {return ex.c_str();}
 };
+
+
+class Background {
+    private:
+        void compute_y_function();
+    public:
+        double hubble;
+        double m_nu;
+        double T_ncdm0;
+        double m_nu_over_T_ncdm0_square;
+        double tau_ini;
+
+        Interpolation1D scale_factor_of_conf_time;
+        Interpolation1D conf_time_of_redshift;
+        Interpolation2D y_function;
+
+        Background(
+                double h,
+                double m_nu,
+                double T_ncdm0,
+                double tau_ini,
+                const std::string& background_file
+                );
+};
+
+
+void interpolate_metric_psi(
+        double hubble,
+        const Interpolation1D& conf_time_of_redshift,
+        const std::string& k_grid_file,
+        const std::string& z_grid_file,
+        const std::string& metric_psi_file,
+        Interpolation2D& metric_psi
+        );
+
 
 
 struct Psi_parameters {
@@ -79,13 +69,13 @@ struct Psi_parameters {
         double k = 0;
         double q = 0;
         double tau_lambda = 0;
-        double grav_psi_at_k_and_tau_lambda = 0;
-        const Constants& constants;
-        const Interpolations& interpols;
+        double metric_psi_at_k_and_tau_lambda = 0;
+        const Background& bg;
+        const Interpolation2D& metric_psi;
         gsl_integration_workspace* workspace = nullptr;
-        int sub_regions;
-        double eps_rel;
-        double eps_abs;
+        std::size_t sub_regions;
+        double rel_tol;
+        double abs_tol;
 };
 
 
@@ -98,30 +88,29 @@ class Perturbations {
     private:
         double tau = 0;
         double k = 0;
-        const Constants& constants;
-        const Interpolations& interpols;
-        double tau_lambda = 0; // When to turn off EdS approx.
-        double grav_psi_at_k_and_tau_lambda = 0;
-        double cutoff = 40;    // q-integral cutoff
+        const Background& bg;
+        const Interpolation2D& metric_psi;
+        double tau_lambda = 0; /* When to turn off EdS approx. */
+        double metric_psi_at_k_and_tau_lambda = 0;
+        double cutoff = 40;    /* q-integral cutoff */
 
-        // Interpolate psi_2 if k is above threshold?
+        /* Interpolate psi_2 if k is above threshold? */
         bool do_interpolate_psi = false;
 
         gsl_integration_workspace* outer_workspace;
         gsl_integration_workspace* inner_workspace;
-        int outer_sub_regions;
-        int inner_sub_regions;
-        double outer_eps_rel;
-        double outer_eps_abs;
-        double inner_eps_rel;
-        double inner_eps_abs;
+        size_t outer_sub_regions;
+        size_t inner_sub_regions;
+        double outer_rel_tol;
+        double outer_abs_tol;
+        double inner_rel_tol;
+        double inner_abs_tol;
 
-        Measurement integrate_background(double (*integrand)(double, void*));
-        Measurement integrate_perturbations(
+        Measurement integrate_fluid_background(double (*integrand)(double, void*));
+        Measurement integrate_fluid_perturbation(
                 double (*integrand)(double, void*),
                 double q_min = 0,
-                gsl_interp_accel* psi_acc = nullptr,
-                gsl_spline* psi_spline = nullptr
+                const Interpolation1D* psi = nullptr
                 );
 
         void interpolate_psi(
@@ -130,8 +119,7 @@ class Perturbations {
                     Measurement& result
                     ),
                 double q_min,
-                gsl_interp_accel** psi_acc,
-                gsl_spline** psi_spline
+                Interpolation1D& psi_spline
                 );
     public:
         Measurement rho;
@@ -144,19 +132,19 @@ class Perturbations {
         Perturbations(
                 double tau,
                 double k,
-                Constants& constants,
-                Interpolations& interpols,
+                const Background& bg,
+                const Interpolation2D& metric_psi,
                 double z_lambda,
                 double cutoff,
                 bool do_interpolate_psi,
                 gsl_integration_workspace* outer_workspace,
                 gsl_integration_workspace* inner_workspace,
-                int outer_sub_regions,
-                int inner_sub_regions,
-                double outer_eps_rel,
-                double outer_eps_abs,
-                double inner_eps_rel,
-                double inner_eps_abs
+                std::size_t outer_sub_regions,
+                std::size_t inner_sub_regions,
+                double outer_rel_tol,
+                double outer_abs_tol,
+                double inner_rel_tol,
+                double inner_abs_tol
                 );
 
         void compute();

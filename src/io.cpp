@@ -13,183 +13,120 @@
 #include <cmath>
 
 #include "../include/io.hpp"
-#include "../include/quantity.hpp"
+#include "../include/measurement.hpp"
+
+#define RESERVE_SIZE 500
+
+template <class T>
+using Vec1D = std::vector<T>;
+template <class T>
+using Vec2D = std::vector<std::vector<T>>;
 
 
-void read_file_and_interpolate(
-        const std::string& filename,
-        int column_a,
-        int column_b,
-        std::vector<double>& x,
-        std::vector<double>& y
+/* Read n_columns number of columns from file , if there are lines with less
+ * columns, throw error. Skips empty lines and lines beginning with '#' */
+void read_columns_from_file(
+        const std::string& filename,  /* in, name of file to be read */
+        size_t n_columns,             /* in, number of columns       */
+        Vec2D<double>& columns        /* out, columns                */
         )
 {
-    // Remove potential content of x and y vectors
-    x.clear();
-    y.clear();
-
     std::ifstream input(filename);
     std::string line;
 
-    if (input.fail()) {
-        std::cerr << "Could not read file: " << filename << ".\n";
-        input.close();
-        return;
+    if (input.fail()){
+        throw(std::invalid_argument("Could not find " + filename + "."));
     }
 
-    while(getline(input, line)) {
-        // Ignore lines beginning with #
-        if (line[0] == '#') continue;
+    columns.clear();
+    columns.resize(n_columns);
+    for (size_t i = 0; i < n_columns; ++i) {
+        columns.at(i).reserve(RESERVE_SIZE);
+    }
+
+    while (getline(input, line)) {
+        /* Ignore empty lines or lines beginning with # */
+        if (line.empty() || line.at(0) == '#') {
+            continue;
+        }
 
         std::stringstream ss(line);
         double value;
 
-        // Counter
-        int i = 0;
-        while(ss >> value) {
-            // If column is equal to column_a, store value in x
-            if (i == column_a) {
-                x.push_back(value);
-            }
-            if (i == column_b) {
-                y.push_back(value);
-            }
-            ++i;
+        // Column counter
+        size_t i = 0;
+        while (ss >> value && i < n_columns) {
+            columns.at(i++).push_back(value);
+        }
+        if (i != n_columns) {
+            throw(std::runtime_error("Number of columns less than n_columns in " +
+                                     filename));
         }
     }
-
-    // Sizes should be equal
-    if (x.size() != y.size()) {
-        std::cerr << "Dimension mismatch: x-grid and data do not have equal \
-            sizes!. Exiting." << std::endl;
-        input.close();
-        return;
-    }
-
     input.close();
 }
 
 
 
-void read_file_and_interpolate2d(
-        const std::string& x_grid_file,
-        const std::string& y_grid_file,
-        const std::string& data_file,
-        std::vector<double>& x,
-        std::vector<double>& y,
-        std::vector<std::vector<double>>& z
+/* Reads data from filename, using indexing scheme:
+ * index = row + column * n_rows
+ * If the number of rows/columns found does not equal n_rows/n_columns, an
+ * error is thrown */
+void read_data_grid_from_file(
+        const std::string& filename,
+        Vec1D<double>& data,
+        size_t n_rows,
+        size_t n_columns
         )
 {
-    // Remove potential content of x,y,z vectors
-    x.clear();
-    y.clear();
-    z.clear();
-
-    // Read x-grid
-    std::ifstream input(x_grid_file);
+    std::ifstream input;
     std::string line;
 
-    if (input.fail()) {
-        std::cerr << "Could not read file: " << x_grid_file << ".\n";
-        input.close();
-        return;
+    input.open(filename);
+    if (input.fail()){
+        throw(std::invalid_argument("Could not find " + filename + "."));
     }
 
-    while(getline(input, line)) {
-        // Ignore lines beginning with #
-        if (line[0] == '#') continue;
+    size_t row_idx = 0;
+    size_t column_idx = 0;
+    size_t idx = 0;
 
-        std::stringstream ss(line);
-        double value;
-        // Counter
-        int i = 0;
+    data.resize(n_rows * n_columns);
 
-        while(ss >> value) ++i;
-
-        if (i != 1) {
-            std::cerr << "More than one column in " << x_grid_file <<
-                ". Exiting." << std::endl;
-            input.close();
-            return;
-        }
-        x.push_back(value);
-    }
-    size_t x_size = x.size();
-    input.close();
-
-    // Read y-grid
-    input.open(y_grid_file);
-    if (input.fail()) {
-        std::cerr << "Could not read file: " << y_grid_file << ".\n";
-        input.close();
-        return;
-    }
-
-    while(getline(input, line)) {
-        // Ignore lines beginning with #
-        if (line[0] == '#') continue;
-
-        std::stringstream ss(line);
-        double value;
-        // Counter
-        int i = 0;
-
-        while(ss >> value) ++i;
-
-        if (i != 1) {
-            std::cerr << "More than one column in " << y_grid_file <<
-                ". Exiting." << std::endl;
-            input.close();
-            return;
-        }
-        y.push_back(value);
-    }
-    size_t y_size = y.size();
-    input.close();
-
-    // Read z-grid (data-grid)
-    input.open(data_file);
-    if (input.fail()) {
-        std::cerr << "Could not read file: " << data_file << ".\n";
-        input.close();
-        return;
-    }
-
-    z.resize(x_size);
-    for (auto& el : z) {
-        el.resize(y_size);
-    }
-
-    size_t x_idx = 0;
-    while(getline(input, line)) {
-        // Ignore lines beginning with #
-        if (line[0] == '#') continue;
-
-        if (x_idx >= x_size) {
-            std::cerr << "Dimension mismatch between x-grid and first dimension \
-                of z-grid in " << data_file << ". Exiting." << std::endl;
-            input.close();
-            return;
+    while (getline(input, line)) {
+        /* Ignore empty lines or lines beginning with # */
+        if (line.empty() || line.at(0) == '#') {
+            continue;
         }
 
-        std::stringstream ss(line);
+        if (row_idx >= n_rows) {
+            throw(std::runtime_error("Number of rows exceeds n_rows."));
+        }
+
         double value;
+        std::stringstream ss(line);
 
-        // Counter
-        size_t y_idx = 0;
+        column_idx = 0;
+        idx = row_idx;
 
-        while(ss >> value) {
-            if (y_idx >= y_size) {
-                std::cerr << "Dimension mismatch between x-grid and second \
-                    dimension of z-grid in " << data_file << ". Exiting." <<
-                    std::endl;
-                input.close();
-                return;
+        while (ss >> value) {
+            if (column_idx >= n_columns) {
+                throw(
+                    std::runtime_error("Number of columns exceeds n_columns."));
             }
-            z[x_idx][y_idx] = value;
-            ++y_idx;
+
+            data.at(idx) = value;
+            column_idx++;
+            idx = row_idx + column_idx * n_rows;
         }
-        ++x_idx;
+        if (column_idx != n_columns) {
+            throw(std::runtime_error(
+                "Number of columns does not equal n_columns."));
+        }
+        row_idx++;
+    }
+    if (row_idx != n_rows) {
+        throw(std::runtime_error("Number of columns does not equal n_rows."));
     }
     input.close();
 }
@@ -199,7 +136,7 @@ void read_file_and_interpolate2d(
 void write_results(
         const std::string& filename,
         const std::vector<double>& z_vals,
-        const std::vector<Quantity>& data,
+        const std::vector<Measurement>& data,
         double k
         )
 {

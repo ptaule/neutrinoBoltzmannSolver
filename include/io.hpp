@@ -11,21 +11,19 @@
 #include <string>
 #include <vector>
 
-void read_file_and_interpolate(
+
+void read_columns_from_file(
         const std::string& filename,
-        int column_a,
-        int column_b,
-        std::vector<double>& x,
-        std::vector<double>& y
+        size_t n_columns,
+        std::vector<std::vector<double>>& columns
         );
 
-void read_file_and_interpolate2d(
-        const std::string& x_grid_file,
-        const std::string& y_grid_file,
-        const std::string& data_file,
-        std::vector<double>& x,
-        std::vector<double>& y,
-        std::vector<std::vector<double>>& z
+
+void read_data_grid_from_file(
+        const std::string& filename,
+        std::vector<double>& data,
+        size_t n_rows,
+        size_t n_columns
         );
 
 class Measurement;

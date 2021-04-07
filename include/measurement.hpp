@@ -19,7 +19,10 @@ class Measurement {
             value_(value), error_(error) {}
 
         double value() const {return value_;};
+        double& value() {return value_;};
+
         double error() const {return error_;};
+        double& error() {return error_;};
 
         Measurement& operator+=(const Measurement& b);
         Measurement operator+(const Measurement& b);
