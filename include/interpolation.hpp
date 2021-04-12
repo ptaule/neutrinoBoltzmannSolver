@@ -69,7 +69,7 @@ class Interpolation1D {
             /* Check limits of interpolation region */
             if (x < x_min || x > x_max) {
                 throw std::runtime_error(
-                    "Interpolation1D::eval(): x = " + std::to_string(x) +
+                    "Interpolation1D::operator(): x = " + std::to_string(x) +
                     " is outside interpolation area (" + std::to_string(x_min) +
                     ", " + std::to_string(x_max) + ").");
             }
@@ -92,7 +92,7 @@ class Interpolation1D {
                 /* Check limits of interpolation region */
                 if (x < x_min || x > x_max) {
                     throw std::runtime_error(
-                        "Interpolation1D::eval(): x = " + std::to_string(x) +
+                        "Interpolation1D::operator(): x = " + std::to_string(x) +
                         " is outside interpolation area (" +
                         std::to_string(x_min) + ", " + std::to_string(x_max) +
                         ").");
@@ -157,13 +157,13 @@ class Interpolation2D {
             /* Check limits of interpolation region */
             if (x < x_min || x > x_max) {
                 throw std::runtime_error(
-                    "Interpolation2D::eval():x = " + std::to_string(x) +
+                    "Interpolation2D::operator():x = " + std::to_string(x) +
                     " is outside interpolation area (" + std::to_string(x_min) +
                     ", " + std::to_string(x_max) + ").");
             }
             if (y < y_min || y > y_max) {
                 throw std::runtime_error(
-                    "Interpolation2D::eval():y = " + std::to_string(y) +
+                    "Interpolation2D::operator():y = " + std::to_string(y) +
                     " is outside interpolation area (" + std::to_string(y_min) +
                     ", " + std::to_string(y_max) + ").");
             }
