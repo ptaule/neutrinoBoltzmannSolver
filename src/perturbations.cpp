@@ -10,18 +10,16 @@
 #include <iostream>
 #include <algorithm>
 
-#include <gsl/gsl_errno.h>
-#include <gsl/gsl_integration.h>
-#include <gsl/gsl_integration.h>
 #include <gsl/gsl_sf_bessel.h>
 
 #include "../include/perturbations.hpp"
 #include "../include/measurement.hpp"
 #include "../include/interpolation.hpp"
+#include "../include/integrator.hpp"
 #include "../include/io.hpp"
 
-#define SQUARE(x) x*x
-#define CUBE(x) x*x
+#define SQUARE(x) (x*x)
+#define CUBE(x) (x*x*x)
 
 using size_t = std::size_t;
 
@@ -29,44 +27,6 @@ template <class T>
 using Vec1D = std::vector<T>;
 template <class T>
 using Vec2D = std::vector<std::vector<T>>;
-
-IntegrationException::IntegrationException(
-                int gsl_status,
-                const std::string& integration_name
-        )
-{
-    switch (gsl_status) {
-        case GSL_EMAXITER:
-            ex = "Maxiumum number of subdevisions reached while integrating " +
-                integration_name;
-            critical_ = true;
-            break;
-        case GSL_EROUND:
-            ex = "Warning: rounding error during integration of " +
-                integration_name;
-            critical_ = false;
-            break;
-        case GSL_ESING:
-            ex = "Singularity or bad behaviour in integration of " +
-                integration_name;
-            critical_ = true;
-            break;
-        case GSL_EDIVERGE:
-            ex = "Divergent or too slowly converging integral: " +
-                integration_name;
-            critical_ = true;
-            break;
-        case GSL_EDOM:
-            ex = "Error in the values of input arguments in integration of " +
-                integration_name;
-            critical_ = true;
-            break;
-        default:
-            ex = "Unknown status returned from integration of " + integration_name;
-            critical_ = true;
-    }
-}
-
 
 
 struct y_integration_parameters {
@@ -76,24 +36,19 @@ struct y_integration_parameters {
 
 
 
-inline double q_over_eps(double tau, void* parameters) {
-    y_integration_parameters& params =
+double q_over_eps(double tau, void* parameters) {
+    y_integration_parameters& p =
         *static_cast<y_integration_parameters*>(parameters);
-    double a = params.scale_factor_of_conf_time(tau);
+    double a = p.scale_factor_of_conf_time(tau);
 
-    return pow(1 + SQUARE(a) * params.m_nu_over_q_T_ncdm0_square, -0.5);
+    return pow(1 + SQUARE(a) * p.m_nu_over_q_T_ncdm0_square, -0.5);
 }
 
 
 
 void Background::compute_y_function()
 {
-    size_t sub_regions = 10000;
-    double rel_tol  = 1e-8;
-    double abs_tol  = 0;
-
-    gsl_integration_workspace* workspace =
-        gsl_integration_workspace_alloc(sub_regions);
+    Integrator integrator(10000);
 
     y_integration_parameters params = {0, scale_factor_of_conf_time};
 
@@ -117,30 +72,15 @@ void Background::compute_y_function()
                 static_cast<double>(i)/static_cast<double>(n_points - 1));
     }
 
-    gsl_function F;
-    F.function = &q_over_eps;
-    F.params = &params;
-
     Measurement result;
 
-    for (size_t j = 0; j < n_points; ++j) {
+    /* for (size_t j = 0; j < n_points; ++j) { */
+    for (size_t j = 1; j < n_points; ++j) {
         params.m_nu_over_q_T_ncdm0_square =
             m_nu_over_T_ncdm0_square / SQUARE(q_grid[j]);
         for (size_t i = 0; i < n_points; ++i) {
             /* Integrate from 1e-6 rather than 0 to avoid extrapolation error */
-            int status = gsl_integration_qag(&F, 1e-6, tau_grid[i], abs_tol,
-                    rel_tol, sub_regions, GSL_INTEG_GAUSS61, workspace,
-                    &result.value(), &result.error());
-
-            if (status != 0) {
-                IntegrationException ex(status, "y_function");
-                if (ex.critical()) {
-                    throw ex;
-                }
-                else {
-                    std::cout << ex.what() << std::endl;
-                }
-            }
+            result = integrator.integrate(q_over_eps, &params, 1e-6, tau_grid[i]);
             y[j * n_points + i] = result.value();
         }
     }
@@ -168,7 +108,7 @@ Background::Background(
         el = 1/(el + 1);
     }
 
-    scale_factor_of_conf_time = Interpolation1D(scale_factor, data[2]);
+    scale_factor_of_conf_time = Interpolation1D(data[2], scale_factor);
 
     /* To interpolate tau(z), reverse vectors, since x (redshift) needs to be
      * increasing for interpolation */
@@ -282,52 +222,6 @@ double psi_0_integrand(double tau, void* parameters) {
 
 
 
-void psi_0(const Psi_parameters& psi_params, Measurement& result)
-{
-    double tau                            = psi_params.tau;
-    double k                              = psi_params.k;
-    double q                              = psi_params.q;
-    double tau_lambda                     = psi_params.tau_lambda;
-    double metric_psi_at_k_and_tau_lambda = psi_params.metric_psi_at_k_and_tau_lambda;
-    const Background& bg                  = psi_params.bg;
-    const Interpolation2D& metric_psi     = psi_params.metric_psi;
-    gsl_integration_workspace* workspace  = psi_params.workspace;
-    size_t sub_regions                    = psi_params.sub_regions;
-    double rel_tol                        = psi_params.rel_tol;
-    double abs_tol                        = psi_params.abs_tol;
-
-    double y_func_at_tau        = bg.y_function(tau, q);
-    double y_func_at_tau_lambda = bg.y_function(tau_lambda, q);
-
-    psi_integration_parameters params = {q, k, y_func_at_tau, tau_lambda,
-        metric_psi_at_k_and_tau_lambda, bg, metric_psi};
-
-    gsl_function F;
-    F.function = &psi_0_integrand;
-    F.params = &params;
-
-    int status = gsl_integration_qag(&F, bg.tau_ini, tau, abs_tol,
-            rel_tol, sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value(),
-            &result.error());
-
-    if (status != 0) {
-        IntegrationException ex(status, "psi_0");
-        if (ex.critical()) {
-            throw ex;
-        }
-        else {
-            std::cout << ex.what() << std::endl;
-        }
-    }
-
-    result *= k * metric_psi_at_k_and_tau_lambda;
-    result += metric_psi_at_k_and_tau_lambda *
-        gsl_sf_bessel_jl(0, k * (y_func_at_tau - y_func_at_tau_lambda))
-        - metric_psi(k, tau);
-}
-
-
-
 double psi_1_integrand(double tau, void* parameters) {
     psi_integration_parameters& params =
         *static_cast<psi_integration_parameters*>(parameters);
@@ -358,54 +252,6 @@ double psi_1_integrand(double tau, void* parameters) {
     }
 
     return result;
-}
-
-
-
-void psi_1(
-        const Psi_parameters& psi_params,
-        Measurement& result
-        )
-{
-    double tau                            = psi_params.tau;
-    double k                              = psi_params.k;
-    double q                              = psi_params.q;
-    double tau_lambda                     = psi_params.tau_lambda;
-    double metric_psi_at_k_and_tau_lambda = psi_params.metric_psi_at_k_and_tau_lambda;
-    const Background& bg                  = psi_params.bg;
-    const Interpolation2D& metric_psi     = psi_params.metric_psi;
-    gsl_integration_workspace* workspace  = psi_params.workspace;
-    size_t sub_regions                    = psi_params.sub_regions;
-    double rel_tol                        = psi_params.rel_tol;
-    double abs_tol                        = psi_params.abs_tol;
-
-    double y_func_at_tau = bg.y_function(tau, q);
-    double y_func_at_tau_lambda = bg.y_function(tau_lambda, q);
-
-    psi_integration_parameters params = {q, k, y_func_at_tau, tau_lambda,
-        metric_psi_at_k_and_tau_lambda, bg, metric_psi};
-
-    gsl_function F;
-    F.function = &psi_1_integrand;
-    F.params = &params;
-
-    int status = gsl_integration_qag(&F, bg.tau_ini, tau, abs_tol,
-            rel_tol, sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value(),
-            &result.error());
-
-    if (status != 0) {
-        IntegrationException ex(status, "psi_1");
-        if (ex.critical()) {
-            throw ex;
-        }
-        else {
-            std::cout << ex.what() << std::endl;
-        }
-    }
-
-    result *= - k * metric_psi_at_k_and_tau_lambda;
-    result += metric_psi(k, tau_lambda)
-        * gsl_sf_bessel_jl(1, k * (y_func_at_tau - y_func_at_tau_lambda));
 }
 
 
@@ -444,50 +290,48 @@ double psi_2_integrand(double tau, void* parameters) {
 
 
 
-void psi_2(
-        const Psi_parameters& psi_params,
-        Measurement& result
+Measurement compute_psi_l(
+        int l,
+        double tau,
+        double k,
+        double q,
+        double tau_lambda,
+        double metric_psi_at_k_and_tau_lambda,
+        const Background& bg,
+        const Interpolation2D& metric_psi,
+        const Integrator& inner_integrator
         )
 {
-    double tau                            = psi_params.tau;
-    double k                              = psi_params.k;
-    double q                              = psi_params.q;
-    double tau_lambda                     = psi_params.tau_lambda;
-    double metric_psi_at_k_and_tau_lambda = psi_params.metric_psi_at_k_and_tau_lambda;
-    const Background& bg                  = psi_params.bg;
-    const Interpolation2D& metric_psi     = psi_params.metric_psi;
-    gsl_integration_workspace* workspace  = psi_params.workspace;
-    size_t sub_regions                    = psi_params.sub_regions;
-    double rel_tol                        = psi_params.rel_tol;
-    double abs_tol                        = psi_params.abs_tol;
-
-    double y_func_at_tau = bg.y_function(tau, q);
+    double y_func_at_tau        = bg.y_function(tau, q);
     double y_func_at_tau_lambda = bg.y_function(tau_lambda, q);
 
     psi_integration_parameters params = {q, k, y_func_at_tau, tau_lambda,
         metric_psi_at_k_and_tau_lambda, bg, metric_psi};
 
-    gsl_function F;
-    F.function = &psi_2_integrand;
-    F.params = &params;
+    Measurement result(k * metric_psi_at_k_and_tau_lambda, 0);
 
-    int status = gsl_integration_qag(&F, bg.tau_ini, tau, abs_tol,
-            rel_tol, sub_regions, GSL_INTEG_GAUSS61, workspace, &result.value(),
-            &result.error());
-
-    if (status != 0) {
-        IntegrationException ex(status, "psi_2");
-        if (ex.critical()) {
-            throw ex;
-        }
-        else {
-            std::cout << ex.what() << std::endl;
-        }
+    switch (l) {
+        case 0:
+            result *= inner_integrator.integrate(psi_0_integrand, &params,
+                    bg.tau_ini, tau);
+            result -= metric_psi(k, tau);
+            break;
+        case 1:
+            result *= - inner_integrator.integrate(psi_1_integrand, &params,
+                    bg.tau_ini, tau);
+            break;
+        case 2:
+            result *= - inner_integrator.integrate(psi_2_integrand, &params,
+                    bg.tau_ini, tau);
+            break;
+        default:
+            throw std::invalid_argument(
+                "Invalid argument l > 2 given to compute_psi().");
     }
 
-    result *= - k * metric_psi_at_k_and_tau_lambda;
-    result += metric_psi(k, tau_lambda)
-        * gsl_sf_bessel_jl(2, k * (y_func_at_tau - y_func_at_tau_lambda));
+    result += metric_psi_at_k_and_tau_lambda *
+        gsl_sf_bessel_jl(l, k * (y_func_at_tau - y_func_at_tau_lambda));
+    return result;
 }
 
 
@@ -500,17 +344,17 @@ struct fluid_background_integration_parameters {
 
 
 double rho_integrand(double q, void* parameters) {
-    fluid_background_integration_parameters& params =
+    fluid_background_integration_parameters& p =
         *static_cast<fluid_background_integration_parameters*>(parameters);
-    return CUBE(q) * eps_over_q(params.tau, q, params.bg) * f0(q);
+    return CUBE(q) * eps_over_q(p.tau, q, p.bg) * f0(q);
 }
 
 
 
 double pressure_integrand(double q, void* parameters) {
-    fluid_background_integration_parameters& params =
+    fluid_background_integration_parameters& p =
         *static_cast<fluid_background_integration_parameters*>(parameters);
-    return CUBE(q) * 1.0/eps_over_q(params.tau, q, params.bg) * f0(q);
+    return CUBE(q) * 1.0/eps_over_q(p.tau, q, p.bg) * f0(q);
 }
 
 
@@ -519,28 +363,8 @@ Measurement Perturbations::integrate_fluid_background(
         double (*integrand)(double, void*)
         )
 {
-    Measurement result;
-
-    fluid_background_integration_parameters params = {tau, bg};
-
-    gsl_function F;
-    F.function = integrand;
-    F.params = &params;
-
-    int status = gsl_integration_qag(&F, 0, cutoff, outer_abs_tol,
-            outer_rel_tol, outer_sub_regions, GSL_INTEG_GAUSS61,
-            outer_workspace, &result.value(), &result.error());
-
-    if (status != 0) {
-        IntegrationException ex(status, "fluid_background");
-        if (ex.critical()) {
-            throw ex;
-        }
-        else {
-            std::cout << ex.what() << std::endl;
-        }
-    }
-
+    fluid_background_integration_parameters p = {tau, bg};
+    Measurement result = outer_integrator.integrate(integrand, &p, 0, cutoff);
     return result;
 }
 
@@ -554,92 +378,68 @@ struct fluid_perturbation_integrand_parameters {
     double metric_psi_at_k_and_tau_lambda;
     const Background& bg;
     const Interpolation2D& metric_psi;
-    gsl_integration_workspace* inner_workspace;
-    size_t inner_sub_regions;
-    double inner_rel_tol;
-    double inner_abs_tol;
+    const Integrator& inner_integrator;
     const Interpolation1D* psi = nullptr;
 };
 
 
 
 double delta_rho_integrand(double q, void* parameters) {
-    fluid_perturbation_integrand_parameters& params =
+    fluid_perturbation_integrand_parameters& p =
         *static_cast<fluid_perturbation_integrand_parameters*>(parameters);
 
-    Measurement psi_0_result;
-    const Psi_parameters psi_params = {params.tau, params.k, q,
-        params.tau_lambda, params.metric_psi_at_k_and_tau_lambda,
-        params.bg, params.metric_psi, params.inner_workspace,
-        params.inner_sub_regions, params.inner_rel_tol, params.inner_abs_tol
-    };
-    psi_0(psi_params, psi_0_result);
+    Measurement psi_0 = compute_psi_l(1, p.tau, p.k, q, p.tau_lambda,
+                                      p.metric_psi_at_k_and_tau_lambda, p.bg,
+                                      p.metric_psi, p.inner_integrator);
 
-    return CUBE(q) * eps_over_q(params.tau, q, params.bg) * df0_dlnq(q) *
-        psi_0_result.value();
+    return CUBE(q) * eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * psi_0.value();
 }
 
 
 
 double delta_P_integrand(double q, void* parameters) {
-    fluid_perturbation_integrand_parameters& params =
+    fluid_perturbation_integrand_parameters& p =
         *static_cast<fluid_perturbation_integrand_parameters*>(parameters);
 
-    Measurement psi_0_result;
-    const Psi_parameters psi_params = {params.tau, params.k, q,
-        params.tau_lambda, params.metric_psi_at_k_and_tau_lambda,
-        params.bg, params.metric_psi, params.inner_workspace,
-        params.inner_sub_regions, params.inner_rel_tol, params.inner_abs_tol
-    };
-    psi_0(psi_params, psi_0_result);
+    Measurement psi_0 = compute_psi_l(0, p.tau, p.k, q, p.tau_lambda,
+                                      p.metric_psi_at_k_and_tau_lambda, p.bg,
+                                      p.metric_psi, p.inner_integrator);
 
-    return CUBE(q) * 1.0/eps_over_q(params.tau, q, params.bg) * df0_dlnq(q) *
-        psi_0_result.value();
+    return CUBE(q) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * psi_0.value();
 }
 
 
 
 double theta_integrand(double q, void* parameters) {
-    fluid_perturbation_integrand_parameters& params =
+    fluid_perturbation_integrand_parameters& p =
         *static_cast<fluid_perturbation_integrand_parameters*>(parameters);
 
-    Measurement psi_1_result;
-    const Psi_parameters psi_params = {params.tau, params.k, q,
-        params.tau_lambda, params.metric_psi_at_k_and_tau_lambda,
-        params.bg, params.metric_psi, params.inner_workspace,
-        params.inner_sub_regions, params.inner_rel_tol, params.inner_abs_tol
-    };
-    psi_1(psi_params, psi_1_result);
+    Measurement psi_1 = compute_psi_l(1, p.tau, p.k, q, p.tau_lambda,
+                                      p.metric_psi_at_k_and_tau_lambda, p.bg,
+                                      p.metric_psi, p.inner_integrator);
 
-    return CUBE(q) * df0_dlnq(q) * psi_1_result.value();
+    return CUBE(q) * df0_dlnq(q) * psi_1.value();
 }
 
 
 
 double sigma_integrand(double q, void* parameters) {
-    fluid_perturbation_integrand_parameters& params =
+    fluid_perturbation_integrand_parameters& p =
         *static_cast<fluid_perturbation_integrand_parameters*>(parameters);
 
-    Measurement psi_2_result;
-    const Psi_parameters psi_params = {params.tau, params.k, q,
-        params.tau_lambda, params.metric_psi_at_k_and_tau_lambda,
-        params.bg, params.metric_psi, params.inner_workspace,
-        params.inner_sub_regions, params.inner_rel_tol, params.inner_abs_tol
-    };
-    psi_2(psi_params, psi_2_result);
+    Measurement psi_2 = compute_psi_l(2, p.tau, p.k, q, p.tau_lambda,
+                                      p.metric_psi_at_k_and_tau_lambda, p.bg,
+                                      p.metric_psi, p.inner_integrator);
 
-    return CUBE(q) * 1.0/eps_over_q(params.tau, q, params.bg) * df0_dlnq(q) *
-        psi_2_result.value();
+    return CUBE(q) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * psi_2.value();
 }
 
 
 
 double sigma_integrand_psi_2_interpolated(double q, void* parameters) {
-    fluid_perturbation_integrand_parameters& params =
+    fluid_perturbation_integrand_parameters& p =
         *static_cast<fluid_perturbation_integrand_parameters*>(parameters);
-
-    return pow(q,3) * 1.0/eps_over_q(params.tau, q, params.bg)
-            * df0_dlnq(q) * (*params.psi)(q);
+    return pow(q,3) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * (*p.psi)(q);
 }
 
 
@@ -650,40 +450,16 @@ Measurement Perturbations::integrate_fluid_perturbation(
         const Interpolation1D* psi
         )
 {
-    Measurement result;
-
-    fluid_perturbation_integrand_parameters params = {tau, k, q_min, tau_lambda,
-        metric_psi_at_k_and_tau_lambda, bg, metric_psi, inner_workspace,
-        inner_sub_regions, inner_rel_tol, inner_abs_tol, psi};
-
-    gsl_function F;
-    F.function = integrand;
-    F.params = &params;
-
-    int status = gsl_integration_qag(&F, 0, cutoff, outer_abs_tol,
-            outer_rel_tol, outer_sub_regions, GSL_INTEG_GAUSS61,
-            outer_workspace, &result.value(), &result.error());
-
-    if (status != 0) {
-        IntegrationException ex(status, "fluid_perturbation");
-        if (ex.critical()) {
-            throw ex;
-        }
-        else {
-            std::cout << ex.what() << std::endl;
-        }
-    }
-
+    fluid_perturbation_integrand_parameters p = {tau, k, q_min, tau_lambda,
+        metric_psi_at_k_and_tau_lambda, bg, metric_psi, inner_integrator, psi};
+    Measurement result = outer_integrator.integrate(integrand, &p, 0, cutoff);
     return result;
 }
 
 
 
-void Perturbations::interpolate_psi(
-        void (*psi)(
-            const Psi_parameters& psi_params,
-            Measurement& result
-            ),
+void Perturbations::interpolate_psi_l(
+        int l,
         double q_min,
         Interpolation1D& psi_spline
         )
@@ -700,17 +476,12 @@ void Perturbations::interpolate_psi(
                 static_cast<double>(n_points - 1));
     }
 
-    Psi_parameters psi_params = {tau, k, 0.0,
-        tau_lambda, metric_psi_at_k_and_tau_lambda,
-        bg, metric_psi, inner_workspace,
-        inner_sub_regions, inner_rel_tol, inner_abs_tol
-    };
     Measurement result;
 
     for (size_t i = 0; i < n_points; ++i) {
-        psi_params.q = q_grid[i];
-        psi(psi_params, result);
-
+        result = compute_psi_l(l, tau, k, q_grid[i], tau_lambda,
+                metric_psi_at_k_and_tau_lambda, bg,
+                metric_psi, inner_integrator);
         psi_vals[i] = result.value();
     }
 
@@ -722,26 +493,17 @@ void Perturbations::interpolate_psi(
 Perturbations::Perturbations(
         double tau,
         double k,
-        const Background& bg,
-        const Interpolation2D& metric_psi,
         double z_lambda,
         double cutoff,
-        bool do_interpolate_psi,
-        gsl_integration_workspace* outer_workspace,
-        gsl_integration_workspace* inner_workspace,
-        size_t outer_sub_regions,
-        size_t inner_sub_regions,
-        double outer_rel_tol,
-        double outer_abs_tol,
-        double inner_rel_tol,
-        double inner_abs_tol
+        const Background& bg,
+        const Interpolation2D& metric_psi,
+        const Integrator& inner_integrator,
+        const Integrator& outer_integrator,
+        bool do_interpolate_psi
         ) :
-    tau(tau), k(k), bg(bg), metric_psi(metric_psi), cutoff(cutoff),
-    do_interpolate_psi(do_interpolate_psi), outer_workspace(outer_workspace),
-    inner_workspace(inner_workspace), outer_sub_regions(outer_sub_regions),
-    inner_sub_regions(inner_sub_regions), outer_rel_tol(outer_rel_tol),
-    outer_abs_tol(outer_abs_tol), inner_rel_tol(inner_rel_tol),
-    inner_abs_tol(inner_abs_tol)
+    tau(tau), k(k), cutoff(cutoff), do_interpolate_psi(do_interpolate_psi),
+    bg(bg), metric_psi(metric_psi), inner_integrator(inner_integrator),
+    outer_integrator(outer_integrator)
 {
     tau_lambda = bg.conf_time_of_redshift(z_lambda);
     metric_psi_at_k_and_tau_lambda = metric_psi(k, tau_lambda);
@@ -773,10 +535,10 @@ void Perturbations::compute() {
         if (do_interpolate_psi && k > 5) {
             double q_min = 1e-5;
             Interpolation1D psi_2_spline;
-            interpolate_psi(psi_2, q_min, psi_2_spline);
+            interpolate_psi_l(2, q_min, psi_2_spline);
 
-            sigma = integrate_fluid_perturbation(sigma_integrand_psi_2_interpolated,
-                    q_min, &psi_2_spline);
+            sigma = integrate_fluid_perturbation(
+                sigma_integrand_psi_2_interpolated, q_min, &psi_2_spline);
         }
         else {
             sigma = integrate_fluid_perturbation(sigma_integrand);

@@ -119,6 +119,13 @@ Measurement Measurement::operator*(double scalar) {
 
 
 
+Measurement Measurement::operator-() {
+    value_ = -value_;
+    return *this;
+}
+
+
+
 std::ostream & operator<<( std::ostream & out, const Measurement& m) {
     out << m.value() << "\t+- " << m.error();
     return out;

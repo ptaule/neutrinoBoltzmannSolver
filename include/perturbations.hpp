@@ -10,24 +10,10 @@
 
 #include <cmath>
 #include <string>
-#include <stdexcept>
 
-#include <gsl/gsl_integration.h>
-
-#include "measurement.hpp"
 #include "interpolation.hpp"
-
-
-class IntegrationException : std::exception {
-    private:
-        bool critical_;
-        std::string ex;
-    public:
-        IntegrationException(int gsl_status, const std::string& integration_name);
-        bool critical() const {return critical_;}
-        const char* what() const noexcept {return ex.c_str();}
-};
-
+#include "measurement.hpp"
+#include "integrator.hpp"
 
 class Background {
     private:
@@ -63,48 +49,35 @@ void interpolate_metric_psi(
         );
 
 
-
-struct Psi_parameters {
-        double tau = 0;
-        double k = 0;
-        double q = 0;
-        double tau_lambda = 0;
-        double metric_psi_at_k_and_tau_lambda = 0;
-        const Background& bg;
-        const Interpolation2D& metric_psi;
-        gsl_integration_workspace* workspace = nullptr;
-        std::size_t sub_regions;
-        double rel_tol;
-        double abs_tol;
-};
-
-
-void psi_0(const Psi_parameters& psi_params, Measurement& result);
-void psi_1(const Psi_parameters& psi_params, Measurement& result);
-void psi_2(const Psi_parameters& psi_params, Measurement& result);
+Measurement compute_psi_l(
+        int l,
+        double tau,
+        double k,
+        double q,
+        double tau_lambda,
+        double metric_psi_at_k_and_tau_lambda,
+        const Background& bg,
+        const Interpolation2D& metric_psi,
+        const Integrator& inner_integrator
+        );
 
 
 class Perturbations {
     private:
-        double tau = 0;
-        double k = 0;
-        const Background& bg;
-        const Interpolation2D& metric_psi;
-        double tau_lambda = 0; /* When to turn off EdS approx. */
-        double metric_psi_at_k_and_tau_lambda = 0;
-        double cutoff = 40;    /* q-integral cutoff */
+        double tau;
+        double k;
+        double tau_lambda; /* When to turn off EdS approx. */
+        double metric_psi_at_k_and_tau_lambda;
+        double cutoff;    /* q-integral cutoff */
 
         /* Interpolate psi_2 if k is above threshold? */
         bool do_interpolate_psi = false;
 
-        gsl_integration_workspace* outer_workspace;
-        gsl_integration_workspace* inner_workspace;
-        size_t outer_sub_regions;
-        size_t inner_sub_regions;
-        double outer_rel_tol;
-        double outer_abs_tol;
-        double inner_rel_tol;
-        double inner_abs_tol;
+        const Background& bg;
+        const Interpolation2D& metric_psi;
+
+        const Integrator& inner_integrator;
+        const Integrator& outer_integrator;
 
         Measurement integrate_fluid_background(double (*integrand)(double, void*));
         Measurement integrate_fluid_perturbation(
@@ -113,14 +86,7 @@ class Perturbations {
                 const Interpolation1D* psi = nullptr
                 );
 
-        void interpolate_psi(
-                void (*psi)(
-                    const Psi_parameters& psi_params,
-                    Measurement& result
-                    ),
-                double q_min,
-                Interpolation1D& psi_spline
-                );
+        void interpolate_psi_l(int l, double q_min, Interpolation1D& psi_spline);
     public:
         Measurement rho;
         Measurement pressure;
@@ -132,19 +98,13 @@ class Perturbations {
         Perturbations(
                 double tau,
                 double k,
-                const Background& bg,
-                const Interpolation2D& metric_psi,
                 double z_lambda,
                 double cutoff,
-                bool do_interpolate_psi,
-                gsl_integration_workspace* outer_workspace,
-                gsl_integration_workspace* inner_workspace,
-                std::size_t outer_sub_regions,
-                std::size_t inner_sub_regions,
-                double outer_rel_tol,
-                double outer_abs_tol,
-                double inner_rel_tol,
-                double inner_abs_tol
+                const Background& bg,
+                const Interpolation2D& metric_psi,
+                const Integrator& inner_integrator,
+                const Integrator& outer_integrator,
+                bool do_interpolate_psi = false
                 );
 
         void compute();

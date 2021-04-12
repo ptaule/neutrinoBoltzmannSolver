@@ -13,6 +13,9 @@
 #include <gsl/gsl_errno.h>
 
 #include "include/io.hpp"
+#include "include/measurement.hpp"
+#include "include/integrator.hpp"
+#include "include/interpolation.hpp"
 #include "include/perturbations.hpp"
 
 #ifndef DEBUG
@@ -32,6 +35,7 @@ int main(int argc, char* argv[]) {
     bool debug              = false;
     bool do_interpolate_psi = false;
     double cutoff           = 40;
+    double abs_tol          = 0;
     double rel_tol          = 1e-4;
     size_t k_index          = 0;
     size_t z_index_a        = 0;
@@ -46,8 +50,11 @@ int main(int argc, char* argv[]) {
 
 
     int c = 0;
-    while ((c = getopt(argc, argv, "c:C:dik:K:l:m:o:r:Z:")) != -1) {
+    while ((c = getopt(argc, argv, "a:c:C:dik:K:l:m:o:r:Z:")) != -1) {
         switch (c) {
+            case 'a':
+                abs_tol = atof(optarg);
+                break;
             case 'c':
                 cutoff = atof(optarg);
                 break;
@@ -85,6 +92,7 @@ int main(int argc, char* argv[]) {
                 break;
             case '?':
                 if (
+                        optopt == 'a' ||
                         optopt == 'c' ||
                         optopt == 'C' ||
                         optopt == 'k' ||
@@ -95,8 +103,8 @@ int main(int argc, char* argv[]) {
                         optopt == 'r' ||
                         optopt == 'Z')
                 {
-                    std::cerr << "Option " << optopt << " requires a keyword as \
-                        argument." << std::endl;
+                    std::cerr << "Option " << static_cast<char>(optopt)
+                              << " requires a keyword as argument." << std::endl;
                     return EXIT_FAILURE;
                 }
                 else {
@@ -185,27 +193,24 @@ int main(int argc, char* argv[]) {
     double T_ncdm0 = 0.00016773497604334795;
     double tau_ini = 1;
 
-    size_t outer_sub_regions = 10000;
-    size_t inner_sub_regions = 20000;
-    gsl_integration_workspace *inner_workspace, *outer_workspace;
-    inner_workspace = gsl_integration_workspace_alloc(inner_sub_regions);
-    outer_workspace = gsl_integration_workspace_alloc(outer_sub_regions);
+    Integrator outer_integrator(10000, abs_tol, rel_tol);
+    Integrator inner_integrator(20000, abs_tol, rel_tol);
 
     try {
         Background bg(hubble, m_nu, T_ncdm0, tau_ini, CLASS_path +
-                "background.dat");
+                "/background.dat");
         Interpolation2D metric_psi;
         interpolate_metric_psi(
-            hubble, bg.conf_time_of_redshift, CLASS_path + "k_grid.dat",
-            CLASS_path + "z_grid.dat", CLASS_path + "psi.dat", metric_psi);
+            hubble, bg.conf_time_of_redshift, CLASS_path + "/k_grid.dat",
+            CLASS_path + "/reverse_z_grid.dat", CLASS_path + "/reverse_psi.dat", metric_psi);
 
         for (size_t i = 0; i < z_grid.size(); ++i) {
             double tau = bg.conf_time_of_redshift(z_grid[i]);
 
-            Perturbations perturbs(tau, k * hubble, bg, metric_psi,
-                    z_lambda, cutoff, do_interpolate_psi, outer_workspace,
-                    inner_workspace, outer_sub_regions, inner_sub_regions, rel_tol,
-                    0.0, rel_tol, 0.0);
+            Perturbations perturbs(tau, k* hubble, z_lambda, cutoff, bg,
+                    metric_psi, inner_integrator, outer_integrator,
+                    do_interpolate_psi);
+
             perturbs.compute();
 
             delta[i] = perturbs.delta;
@@ -214,19 +219,13 @@ int main(int argc, char* argv[]) {
         }
     }
     catch (const IntegrationException& ex) {
-        gsl_integration_workspace_free(outer_workspace);
-        gsl_integration_workspace_free(inner_workspace);
         std::cerr << ex.what() << std::endl;
         return EXIT_FAILURE;
     }
     catch (const std::exception& ex) {
-        gsl_integration_workspace_free(outer_workspace);
-        gsl_integration_workspace_free(inner_workspace);
         std::cerr << ex.what() << std::endl;
         return EXIT_FAILURE;
     }
-    gsl_integration_workspace_free(outer_workspace);
-    gsl_integration_workspace_free(inner_workspace);
 
     std::string output_info =
         "_k_" + std::to_string(k_index) + "_z_" + std::to_string(z_index_a);

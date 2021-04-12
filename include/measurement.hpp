@@ -44,6 +44,8 @@ class Measurement {
 
         Measurement& operator*=(double scalar);
         Measurement operator*(double scalar);
+
+        Measurement operator-();
 };
 
 std::ostream& operator<<(std::ostream& out, const Measurement& m);
