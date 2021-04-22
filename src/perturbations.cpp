@@ -41,7 +41,7 @@ double q_over_eps(double tau, void* parameters) {
         *static_cast<y_integration_parameters*>(parameters);
     double a = p.scale_factor_of_conf_time(tau);
 
-    return pow(1 + SQUARE(a) * p.m_nu_over_q_T_ncdm0_square, -0.5);
+    return 1/std::sqrt(1 + SQUARE(a) * p.m_nu_over_q_T_ncdm0_square);
 }
 
 
@@ -62,13 +62,13 @@ void Background::compute_y_function()
 
     /* First element of q_vals should remain 0 */
     for (size_t i = 1; i < n_points; ++i) {
-        q_grid[i] = q_min * pow(q_max / q_min,
+        q_grid[i] = q_min * std::pow(q_max / q_min,
                     static_cast<double>(i - 1) / static_cast<double>(n_points - 2));
     }
 
     double tau_today = conf_time_of_redshift(0);
     for (size_t i = 0; i < n_points; ++i) {
-        tau_grid[i] = tau_ini * pow(tau_today/tau_ini,
+        tau_grid[i] = tau_ini * std::pow(tau_today/tau_ini,
                 static_cast<double>(i)/static_cast<double>(n_points - 1));
     }
 
@@ -160,23 +160,22 @@ void interpolate_metric_psi(
 
 double eps_over_q(double tau, double q, const Background& background)
 {
-    return pow(1 + SQUARE(background.scale_factor_of_conf_time(tau)) *
-                       background.m_nu_over_T_ncdm0_square / SQUARE(q),
-               0.5);
+    return std::sqrt(1 + SQUARE(background.scale_factor_of_conf_time(tau)) *
+                           background.m_nu_over_T_ncdm0_square / SQUARE(q));
 }
 
 
 
 double f0(double q)
 {
-    return pow(1 + exp(q), -1);
+    return 1/(1 + exp(q));
 }
 
 
 
 double df0_dlnq(double q)
 {
-    return -q * exp(q) * pow(1 + exp(q), -2);
+    return -q * exp(q) * 1/SQUARE(1 + exp(q));
 }
 
 
@@ -439,7 +438,7 @@ double sigma_integrand(double q, void* parameters) {
 double sigma_integrand_psi_2_interpolated(double q, void* parameters) {
     fluid_perturbation_integrand_parameters& p =
         *static_cast<fluid_perturbation_integrand_parameters*>(parameters);
-    return pow(q,3) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * (*p.psi)(q);
+    return CUBE(q) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * (*p.psi)(q);
 }
 
 
@@ -472,7 +471,7 @@ void Perturbations::interpolate_psi_l(
     double q_max = cutoff;
     /* First element of q_vals should remain 0 */
     for (size_t i = 0; i < n_points; ++i) {
-        q_grid[i] = q_min * pow(q_max / q_min, static_cast<double>(i) /
+        q_grid[i] = q_min * std::pow(q_max / q_min, static_cast<double>(i) /
                 static_cast<double>(n_points - 1));
     }
 
@@ -513,7 +512,7 @@ Perturbations::Perturbations(
 
 void Perturbations::compute() {
     double a = bg.scale_factor_of_conf_time(tau);
-    double factor = 4 * M_PI * pow(bg.T_ncdm0/a, 4);
+    double factor = 4 * M_PI * std::pow(bg.T_ncdm0/a, 4);
 
     try {
         rho      = integrate_fluid_background(rho_integrand);
