@@ -328,8 +328,11 @@ Measurement compute_psi_l(
                 "Invalid argument l > 2 given to compute_psi().");
     }
 
-    result += metric_psi_at_k_and_tau_lambda *
-        gsl_sf_bessel_jl(l, k * (y_func_at_tau - y_func_at_tau_lambda));
+    /* Add boundary term from integration split when z < z_lambda */
+    if (tau > tau_lambda) {
+        result += metric_psi_at_k_and_tau_lambda *
+            gsl_sf_bessel_jl(l, k * (y_func_at_tau - y_func_at_tau_lambda));
+    }
     return result;
 }
 
