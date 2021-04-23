@@ -18,9 +18,6 @@
 #include "../include/integrator.hpp"
 #include "../include/io.hpp"
 
-#define SQUARE(x) (x*x)
-#define CUBE(x) (x*x*x)
-
 using size_t = std::size_t;
 
 template <class T>
@@ -41,7 +38,7 @@ double q_over_eps(double tau, void* parameters) {
         *static_cast<y_integration_parameters*>(parameters);
     double a = p.scale_factor_of_conf_time(tau);
 
-    return 1/std::sqrt(1 + SQUARE(a) * p.m_nu_over_q_T_ncdm0_square);
+    return 1/std::sqrt(1 + a * a * p.m_nu_over_q_T_ncdm0_square);
 }
 
 
@@ -77,7 +74,7 @@ void Background::compute_y_function()
     /* for (size_t j = 0; j < n_points; ++j) { */
     for (size_t j = 1; j < n_points; ++j) {
         params.m_nu_over_q_T_ncdm0_square =
-            m_nu_over_T_ncdm0_square / SQUARE(q_grid[j]);
+            m_nu_over_T_ncdm0_square / (q_grid[j] * q_grid[j]);
         for (size_t i = 0; i < n_points; ++i) {
             /* Integrate from 1e-6 rather than 0 to avoid extrapolation error */
             result = integrator.integrate(q_over_eps, &params, 1e-6, tau_grid[i]);
@@ -117,7 +114,7 @@ Background::Background(
 
     conf_time_of_redshift = Interpolation1D(data[0], data[2]);
 
-    m_nu_over_T_ncdm0_square = SQUARE(m_nu) / SQUARE(T_ncdm0);
+    m_nu_over_T_ncdm0_square = m_nu * m_nu / (T_ncdm0 * T_ncdm0);
     compute_y_function();
 }
 
@@ -160,8 +157,8 @@ void interpolate_metric_psi(
 
 double eps_over_q(double tau, double q, const Background& background)
 {
-    return std::sqrt(1 + SQUARE(background.scale_factor_of_conf_time(tau)) *
-                           background.m_nu_over_T_ncdm0_square / SQUARE(q));
+    double a = background.scale_factor_of_conf_time(tau);
+    return std::sqrt(1 + a * a * background.m_nu_over_T_ncdm0_square / (q * q));
 }
 
 
@@ -175,7 +172,7 @@ double f0(double q)
 
 double df0_dlnq(double q)
 {
-    return -q * exp(q) * 1/SQUARE(1 + exp(q));
+    return -q * std::exp(q) * 1/std::pow(1 + std::exp(q), 2);
 }
 
 
@@ -348,7 +345,7 @@ struct fluid_background_integration_parameters {
 double rho_integrand(double q, void* parameters) {
     fluid_background_integration_parameters& p =
         *static_cast<fluid_background_integration_parameters*>(parameters);
-    return CUBE(q) * eps_over_q(p.tau, q, p.bg) * f0(q);
+    return pow(q,3) * eps_over_q(p.tau, q, p.bg) * f0(q);
 }
 
 
@@ -356,7 +353,7 @@ double rho_integrand(double q, void* parameters) {
 double pressure_integrand(double q, void* parameters) {
     fluid_background_integration_parameters& p =
         *static_cast<fluid_background_integration_parameters*>(parameters);
-    return CUBE(q) * 1.0/eps_over_q(p.tau, q, p.bg) * f0(q);
+    return pow(q,3) * 1.0/eps_over_q(p.tau, q, p.bg) * f0(q);
 }
 
 
@@ -394,7 +391,7 @@ double delta_rho_integrand(double q, void* parameters) {
                                       p.metric_psi_at_k_and_tau_lambda, p.bg,
                                       p.metric_psi, p.inner_integrator);
 
-    return CUBE(q) * eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * psi_0.value();
+    return pow(q,3) * eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * psi_0.value();
 }
 
 
@@ -407,7 +404,7 @@ double delta_P_integrand(double q, void* parameters) {
                                       p.metric_psi_at_k_and_tau_lambda, p.bg,
                                       p.metric_psi, p.inner_integrator);
 
-    return CUBE(q) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * psi_0.value();
+    return pow(q,3) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * psi_0.value();
 }
 
 
@@ -420,7 +417,7 @@ double theta_integrand(double q, void* parameters) {
                                       p.metric_psi_at_k_and_tau_lambda, p.bg,
                                       p.metric_psi, p.inner_integrator);
 
-    return CUBE(q) * df0_dlnq(q) * psi_1.value();
+    return pow(q,3) * df0_dlnq(q) * psi_1.value();
 }
 
 
@@ -433,7 +430,7 @@ double sigma_integrand(double q, void* parameters) {
                                       p.metric_psi_at_k_and_tau_lambda, p.bg,
                                       p.metric_psi, p.inner_integrator);
 
-    return CUBE(q) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * psi_2.value();
+    return pow(q,3) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * psi_2.value();
 }
 
 
@@ -441,7 +438,7 @@ double sigma_integrand(double q, void* parameters) {
 double sigma_integrand_psi_2_interpolated(double q, void* parameters) {
     fluid_perturbation_integrand_parameters& p =
         *static_cast<fluid_perturbation_integrand_parameters*>(parameters);
-    return CUBE(q) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * (*p.psi)(q);
+    return pow(q,3) * 1.0/eps_over_q(p.tau, q, p.bg) * df0_dlnq(q) * (*p.psi)(q);
 }
 
 
