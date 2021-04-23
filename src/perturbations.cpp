@@ -387,7 +387,7 @@ double delta_rho_integrand(double q, void* parameters) {
     fluid_perturbation_integrand_parameters& p =
         *static_cast<fluid_perturbation_integrand_parameters*>(parameters);
 
-    Measurement psi_0 = compute_psi_l(1, p.tau, p.k, q, p.tau_lambda,
+    Measurement psi_0 = compute_psi_l(0, p.tau, p.k, q, p.tau_lambda,
                                       p.metric_psi_at_k_and_tau_lambda, p.bg,
                                       p.metric_psi, p.inner_integrator);
 
