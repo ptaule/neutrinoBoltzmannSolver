@@ -31,7 +31,6 @@ using Vec2D = std::vector<std::vector<T>>;
 
 
 int main(int argc, char* argv[]) {
-
     bool debug              = false;
     bool do_interpolate_psi = false;
     double cutoff           = 40;
@@ -168,6 +167,7 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+    /* k in h/Mpc */
     double k = k_grid[k_index];
 
     /* Take subset of z_grid depending on arguments */
@@ -205,6 +205,7 @@ int main(int argc, char* argv[]) {
             CLASS_path + "/reverse_z_grid.dat", CLASS_path + "/reverse_psi.dat", metric_psi);
 
         for (size_t i = 0; i < z_grid.size(); ++i) {
+            std::cout << "Iteration " << i << ": z = " << z_grid[i] << ".\t";
             double tau = bg.conf_time_of_redshift(z_grid[i]);
 
             Perturbations perturbs(tau, k* hubble, z_lambda, cutoff, bg,

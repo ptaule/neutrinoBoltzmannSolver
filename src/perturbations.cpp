@@ -528,12 +528,12 @@ void Perturbations::compute() {
         std::cout << "Computing delta_rho...";
         std::cout.flush();
         Measurement delta_rho = integrate_fluid_perturbation(delta_rho_integrand);
-        std::cout << "done.\nComputing delta_P...";
+        std::cout << "done. Computing delta_P...";
         std::cout.flush();
         Measurement delta_P   = integrate_fluid_perturbation(delta_P_integrand);
-        std::cout << "done.\n";
+        std::cout << "done. ";
         std::cout.flush();
-        theta              = integrate_fluid_perturbation(theta_integrand);
+        /* theta              = integrate_fluid_perturbation(theta_integrand); */
 
         std::cout << "Computing sigma...";
         std::cout.flush();
@@ -549,7 +549,7 @@ void Perturbations::compute() {
         else {
             sigma = integrate_fluid_perturbation(sigma_integrand);
         }
-        std::cout << "done" << std::endl;
+        std::cout << "done." << std::endl;
 
         delta = delta_rho / rho;
         cs2 = delta_P / delta_rho;
