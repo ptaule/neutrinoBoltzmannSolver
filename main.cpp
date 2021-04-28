@@ -150,7 +150,7 @@ int main(int argc, char* argv[]) {
     z_grid = data[0];
 
     // Check that indices are within range (size_t variables are alwas positive)
-    if (k_index > k_grid.size()) {
+    if (k_index >= k_grid.size()) {
         std::cout << "k_index out of range! Exiting." << std::endl;
         return EXIT_FAILURE;
     }
@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
         std::cout << "z_index_a out of range! Exiting." << std::endl;
         return EXIT_FAILURE;
     }
-    else if (z_index_b > z_grid.size()) {
+    else if (z_index_b >= z_grid.size()) {
         std::cout << "z_index_b out of range! Exiting." << std::endl;
         return EXIT_FAILURE;
     }
@@ -180,7 +180,7 @@ int main(int argc, char* argv[]) {
         Vec1D<double>::const_iterator first =
             z_grid.begin() + static_cast<long int>(z_index_a);
         Vec1D<double>::const_iterator last =
-            z_grid.begin() + static_cast<long int>(z_index_b);
+            z_grid.begin() + static_cast<long int>(z_index_b) + 1;
         z_grid = Vec1D<double>(first, last);
     }
 
