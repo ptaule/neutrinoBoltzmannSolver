@@ -14,7 +14,7 @@ CXXFLAGS += -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion \
 			-Wcast-align -Wunused -Wlogical-op -Wnull-dereference \
 			-std=c++17
 
-CPPFLAGS += -DHAVE_INLINE -I/space/ge52sir/local/
+CPPFLAGS += -DHAVE_INLINE -I/space/ge52sir/local/include/
 
 all:   CXXFLAGS += -DDEBUG=0 -O3
 debug: CPPFLAGS += -DDEBUG=1
