@@ -11,8 +11,8 @@ HEADERS = $(wildcard $(INC_DIR)/*.hpp)
 CXX ?= g++
 
 CXXFLAGS += -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion \
-			-Wcast-align -Wunused -Wlogical-op -Wnull-dereference \
-			-std=c++17
+		-Wcast-align -Wunused -Wlogical-op -Wnull-dereference \
+		-std=c++17
 
 CPPFLAGS += -DHAVE_INLINE -I/space/ge52sir/local/include/
 
@@ -27,9 +27,6 @@ LDLIBS += -lgsl -lgslcblas
 
 all: $(EXE)
 debug: $(EXE)
-
-run: all
-	./$(EXE)
 
 $(EXE): main.o $(OBJ)
 	$(CXX) $(LDFLAGS) $^ $(LDLIBS) -o $@
