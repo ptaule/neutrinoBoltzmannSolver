@@ -307,17 +307,9 @@ Measurement compute_psi_l(
     Measurement result(k * metric_psi_at_k_and_tau_lambda, 0);
 
     switch (l) {
-        case 0: {
-                    result *= inner_integrator.integrate(psi_0_integrand,
-                            &params, bg.tau_ini, tau);
-                    /* For z > 25, use psi(z) = psi(25) = const */
-                    if (tau < bg.conf_time_of_redshift(25)) {
-                        result -= metric_psi(k, bg.conf_time_of_redshift(25));
-                    }
-                    else {
-                        result -= metric_psi(k, tau);
-                    }
-                }
+        case 0:
+            result *= inner_integrator.integrate(psi_0_integrand,
+                    &params, bg.tau_ini, tau);
             break;
         case 1:
             result *= - inner_integrator.integrate(psi_1_integrand, &params,
@@ -332,10 +324,13 @@ Measurement compute_psi_l(
                 "Invalid argument l > 2 given to compute_psi().");
     }
 
-    /* Add boundary term from integration split when z < z_lambda */
+    /* Add boundary term from integration by parts of [tau_lambda,tau]-integration over d phi/ d tau */
     if (tau > tau_lambda) {
         result += metric_psi_at_k_and_tau_lambda *
             gsl_sf_bessel_jl(l, k * (y_func_at_tau - y_func_at_tau_lambda));
+        if (l == 0) {
+            result -= metric_psi(k, tau);
+        }
     }
     return result;
 }
