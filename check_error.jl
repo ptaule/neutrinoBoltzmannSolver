@@ -12,9 +12,14 @@ function parse_commandline()
     s = ArgParseSettings()
 
     @add_arg_table! s begin
+        "--n_files"
+            help = "Number of files"
+            arg_type = Int
+            default = 100
         "file_prefix"
             help = "File prefix"
             required = true
+
     end
 
     return parse_args(s)
@@ -24,10 +29,11 @@ function main()
     parse_args = parse_commandline()
 
     file_prefix = parse_args["file_prefix"]
+    n_files = parse_args["n_files"]
 
     z_vals = readdlm(file_prefix * "_k_0.dat", comments=true)[:,1]
 
-    for k=0:99
+    for k=0:n_files-1
         data = readdlm(file_prefix * "_k_$k.dat", comments=true)
 
         if data[:,1] != z_vals
@@ -36,7 +42,7 @@ function main()
 
         for z=1:size(data,1)
             rel_err = data[z,4] / data[z,2]
-            if rel_err > 1e-2
+            if rel_err > 1e-3
                 println("Relative error $rel_err for k_index = $k and z_index = $z")
             end
         end
