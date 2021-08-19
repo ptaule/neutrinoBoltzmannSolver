@@ -9,5 +9,7 @@ neutrinos, as given in Shoji&Komatsu '08. Some assumptions are made:
 - At some redshift (e.g. z_lambda=5) the time dependence of the grav.potential is taken into account
 
 The output directory includes results for various neutrino masses, using
-z_lambda=5. Note that for high k integrands become oscillatory, and it is
-difficult to achieve sub-percent precision.
+z_lambda=5. The time-axis (rows) of the data in this directory is reversed so
+that it corresponds to decreasing redshift (increasing eta_D = ln D).  Note
+that for high k integrands become oscillatory, and it is difficult to achieve
+sub-percent precision.
