@@ -40,12 +40,12 @@ int main(int argc, char* argv[]) {
     size_t z_index_a        = 0;
     size_t z_index_b        = 0;
     double z_lambda         = 5;
-    double m_nu             = 0.07;
+    double m_nu             = 0.05;
     std::string k_grid_file = "input/k_grid.dat";
     std::string z_grid_file = "input/z_grid.dat";
     std::string output_path = "output/test/";
     std::string CLASS_path  =
-        "/space/ge52sir/class_public/output/m_nu_0.02eV/noFA_lmax_17/";
+        "/space/ge52sir/class_public/output/m_nu_0.05eV/noFA_lmax_17/";
 
 
     int c = 0;
