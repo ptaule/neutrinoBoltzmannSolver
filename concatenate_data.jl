@@ -32,20 +32,14 @@ function main()
 
     data = readdlm(file_prefix * "_k_0.dat", comments=true)
 
-    table = zeros(size(data,1), n_files+2)
+    table = zeros(size(data,1), n_files)
 
-    table[:,1] = data[:,2]
-    # Add first column twice, extrapolating lowest k to k = 0
-    table[:,2] = data[:,2]
-
-    for k=1:n_files-1
+    # Index naming of files is zero-based
+    for k=0:n_files-1
         data = readdlm(file_prefix * "_k_$k.dat", comments=true)
 
-        table[:, 2 + k] = data[:,2]
+        table[:, k+1] = data[:,2]
     end
-
-    # Extrapolate last k-value to k = 141
-    table[:,n_files+2] = table[:,n_files+1]
 
     # Need increasing etaD grid (i.e. decreasing redshift), therefore reverse
     # first dimension of table
